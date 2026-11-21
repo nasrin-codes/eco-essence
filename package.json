@@ -1,0 +1,20 @@
+{
+  "name": "plant-project",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "backend": "cd plant-backend && npm run dev",
+    "frontend": "cd plant-frontend && npm run dev",
+    "dev": "concurrently \"npm run backend\" \"npm run frontend\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "autoprefixer": "^10.6.2",
+    "concurrently": "^10.0.5",
+    "postcss": "^8.5.32",
+    "tailwindcss": "^3.4.19"
+  }
+}

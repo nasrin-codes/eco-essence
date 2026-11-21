@@ -1,0 +1,436 @@
+/* :root {
+  --forest-green: #2d4a43;
+  --sage-green: #7d9d85;
+  --soft-mint: #e8f0ec;
+  --earth-cream: #faf7f2;
+  --warm-bark: #4a3e3d;
+  --text-dark: #222c2a;
+}
+
+.plant-about-container {
+  background-color: var(--earth-cream);
+  font-family: 'Segoe UI', Roboto, sans-serif;
+  color: var(--text-dark);
+  min-height: 100vh;
+}
+
+/* Hero Section Banner */
+/*
+.about-hero {
+  background-color: var(--forest-green);
+  color: var(--earth-cream);
+  padding: 5rem 2rem;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.about-hero h1 {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  color: #fff;
+}
+
+.about-hero p {
+  font-size: 1.2rem;
+  max-width: 600px;
+  margin: 0 auto;
+  opacity: 0.9;
+}
+*/
+/* Two-Column Story Segment */
+/*.about-story-section {
+  display: flex;
+  gap: 4rem;
+  max-width: 1100px;
+  margin: 4rem auto;
+  padding: 0 2rem;
+  align-items: center;
+}
+
+.story-content {
+  flex: 1;
+}
+
+.story-content h2 {
+  font-size: 2.2rem;
+  color: var(--forest-green);
+  margin-bottom: 1.5rem;
+}
+
+.story-content p {
+  line-height: 1.7;
+  margin-bottom: 1.2rem;
+}*/
+
+/* Geometric Minimalist Plant Accent Graphic Placement Box */
+/*.story-image-placeholder {
+  flex: 1;
+  background-color: var(--soft-mint);
+  border: 3px dashed var(--sage-green);
+  border-radius: 16px;
+  height: 350px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 4rem;
+  box-shadow: 0 10px 20px rgba(45, 74, 67, 0.05);
+}
+*/
+/* Impact Numbers / Stats Grid */
+/*
+.about-stats-strip {
+  background-color: var(--soft-mint);
+  padding: 3rem 2rem;
+  margin: 4rem 0;
+}
+
+.stats-grid {
+  display: flex;
+  justify-content: space-around;
+  max-width: 1100px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.stat-card h3 {
+  font-size: 2.8rem;
+  color: var(--forest-green);
+  margin-bottom: 0.5rem;
+}
+
+.stat-card p {
+  font-weight: 600;
+  color: var(--warm-bark);
+}
+*/
+/* Team Profile Grid Section */
+/*
+.about-team-section {
+  max-width: 1100px;
+  margin: 4rem auto;
+  padding: 0 2rem 6rem 2rem;
+  text-align: center;
+}
+
+.about-team-section h2 {
+  font-size: 2.2rem;
+  color: var(--forest-green);
+  margin-bottom: 3rem;
+}
+
+.team-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 2rem;
+}
+
+.team-card {
+  background: #fff;
+  border: 1px solid var(--soft-mint);
+  border-radius: 12px;
+  padding: 2rem 1.5rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.team-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 20px rgba(45, 74, 67, 0.08);
+}
+
+.team-avatar {
+  font-size: 3rem;
+  background-color: var(--earth-cream);
+  width: 80px;
+  height: 80px;
+  line-height: 80px;
+  border-radius: 50%;
+  margin: 0 auto 1.5rem auto;
+}
+
+.team-card h4 {
+  font-size: 1.25rem;
+  color: var(--forest-green);
+  margin-bottom: 0.25rem;
+}
+
+.team-card span {
+  font-size: 0.9rem;
+  color: var(--sage-green);
+  display: block;
+  margin-bottom: 1rem;
+}
+
+.team-card p {
+  font-size: 0.95rem;
+  line-height: 1.5;
+}*/
+
+/* Mobile Breakpoints */
+/*
+@media (max-width: 768px) {
+  .about-story-section {
+    flex-direction: column;
+    gap: 2rem;
+  }
+  .stats-grid {
+    flex-direction: column;
+    gap: 2.5rem;
+  }
+  .about-hero h1 {
+    font-size: 2.2rem;
+  }
+} */
+.editorial-about-wrapper {
+  background-color: #faf9f6; /* Premium studio bone white canvas backing */
+  min-height: 100vh;
+  padding: 80px 0;
+  box-sizing: border-box;
+}
+
+/* 1. Immersive Minimalist Header */
+.about-hero-header {
+  text-align: center;
+  max-width: 800px;
+  margin: 0 auto 80px auto;
+  padding: 0 24px;
+}
+
+.about-pre-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--brand-green-primary);
+  font-weight: 700;
+  letter-spacing: 3px;
+  display: block;
+  margin-bottom: 12px;
+}
+
+.about-main-headline {
+  font-size: clamp(2.2rem, 5vw, 3.5rem);
+  font-weight: 300;
+  color: var(--text-dark-primary);
+  line-height: 1.2;
+  margin: 0 0 18px 0;
+  letter-spacing: -1px;
+}
+
+.about-sub-p {
+  color: var(--text-dark-muted);
+  font-size: 17px;
+  line-height: 1.6;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+/* 2. Staggered Split Story Panel */
+.about-split-story {
+  display: flex;
+  flex-direction: column;
+  max-width: 1200px;
+  margin: 0 auto 100px auto;
+  background-color: #ffffff;
+  border-top: 1px solid var(--border-neutral-light);
+  border-bottom: 1px solid var(--border-neutral-light);
+}
+
+@media (min-width: 768px) {
+  .about-split-story { flex-direction: row; }
+}
+
+.about-story-text-pane {
+  flex: 1;
+  padding: 80px 6vw;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  text-align: left;
+}
+
+.story-step-tag {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--brand-green-primary);
+  font-weight: 700;
+  letter-spacing: 2px;
+  margin-bottom: 16px;
+}
+
+.about-story-text-pane h2 {
+  font-size: clamp(1.8rem, 3vw, 2.5rem);
+  font-weight: 300;
+  color: var(--text-dark-primary);
+  margin: 0 0 20px 0;
+}
+
+.about-story-text-pane p {
+  color: var(--text-dark-muted);
+  font-size: 15.5px;
+  line-height: 1.65;
+  margin: 0 0 20px 0;
+}
+
+.about-story-cta {
+  color: var(--brand-green-primary);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 14.5px;
+  margin-top: 12px;
+  transition: transform 200ms;
+}
+
+.about-story-cta:hover {
+  transform: translateX(4px);
+}
+
+.about-story-image-pane {
+  flex: 1;
+  position: relative;
+  min-height: 400px;
+}
+
+.about-story-image-pane img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.story-floating-stats {
+  position: absolute;
+  bottom: 32px;
+  left: 32px;
+  background-color: var(--text-dark-primary);
+  color: #ffffff;
+  padding: 16px 24px;
+  border-radius: var(--radius-rounded-card);
+  text-align: left;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+.story-floating-stats strong {
+  font-size: 24px;
+  color: var(--brand-green-primary);
+  display: block;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.story-floating-stats span {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+/* 3. Micro-Metric Numbers Grid */
+.about-metrics-bar {
+  background-color: var(--text-dark-primary);
+  color: #ffffff;
+  padding: 60px 6vw;
+  margin-bottom: 100px;
+}
+
+.metrics-inner-grid {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 40px;
+  text-align: center;
+}
+
+.metric-node h3 {
+  font-size: 42px;
+  font-weight: 300;
+  color: var(--brand-green-primary);
+  margin: 0 0 6px 0;
+}
+
+.metric-node p {
+  color: #9ca3af;
+  font-size: 14.5px;
+  margin: 0;
+}
+
+/* 4. Chronological Studio Timeline */
+.about-timeline-section {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.timeline-section-header {
+  text-align: center;
+  margin-bottom: 60px;
+}
+
+.timeline-section-header h2 {
+  font-size: 32px;
+  font-weight: 300;
+  margin: 6px 0 0 0;
+}
+
+.timeline-backbone-box {
+  display: flex;
+  flex-direction: column;
+}
+
+.timeline-row-node {
+  display: flex;
+  gap: 32px;
+}
+
+.timeline-marker-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.timeline-year-badge {
+  background-color: var(--brand-green-primary);
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  box-shadow: 0 4px 10px rgba(5, 150, 105, 0.2);
+}
+
+.timeline-vertical-line {
+  width: 2px;
+  flex-grow: 1;
+  background-color: var(--border-neutral-light);
+  margin: 12px 0;
+  min-height: 60px;
+}
+
+/* Strips out line on final element node */
+.timeline-row-node:last-child .timeline-vertical-line {
+  display: none;
+}
+
+.timeline-content-card {
+  background-color: #ffffff;
+  border: 1px solid var(--border-neutral-light);
+  border-radius: var(--radius-rounded-card);
+  padding: 28px;
+  text-align: left;
+  flex-grow: 1;
+  margin-bottom: 32px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.01);
+}
+
+.timeline-content-card h4 {
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--text-dark-primary);
+  margin: 0 0 10px 0;
+}
+
+.timeline-content-card p {
+  color: var(--text-dark-muted);
+  font-size: 14.5px;
+  line-height: 1.55;
+  margin: 0;
+}

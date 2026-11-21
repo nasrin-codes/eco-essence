@@ -1,0 +1,227 @@
+.vault-wrapper {
+  max-width: 1200px;
+  margin: 60px auto;
+  padding: 0 20px;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  background-color: #FBFBFA;
+}
+
+/* --- Fine-Print Top Header Row --- */
+.vault-header {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px solid #E6E8E6;
+  padding-bottom: 12px;
+  margin-bottom: 32px;
+}
+
+.vault-fine-print {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: #1A2E26;
+}
+.vault-status-dot {
+  font-size: 10px;
+  font-weight: 600;
+  color: #2C4A3E;
+  letter-spacing: 1px;
+}
+
+/* --- The Modern Split-Screen Workspace Layout --- */
+.vault-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.1fr;
+  gap: 50px;
+  align-items: center;
+}
+
+/* --- Left Side: Menu Interaction Pane --- */
+.vault-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.vault-row {
+  padding: 20px 24px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+}
+.vault-row:hover {
+  background-color: rgba(255, 255, 255, 0.5);
+  transform: translateX(4px);
+}
+
+.vault-row.is-active {
+  background-color: #FFFFFF;
+  border: 1px solid #E6E8E6;
+  box-shadow: 0 15px 30px rgba(26, 46, 38, 0.03);
+  transform: translateX(8px);
+}
+
+.vault-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.vault-idx {
+  font-family: Georgia, serif;
+  font-size: 12px;
+  font-style: italic;
+  color: #A0A8A4;
+}
+.vault-tag {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #8A948F;
+  transition: color 0.3s ease;
+}
+
+.vault-row.is-active .vault-tag {
+  color: #2C4A3E;
+}
+
+.vault-name {
+  font-family: Georgia, serif;
+  font-size: 26px;
+  font-weight: 400;
+  margin: 0;
+  color: #8A948F;
+  transition: color 0.3s ease;
+}
+
+.vault-row.is-active .vault-name {
+  color: #1A2E26;
+}
+/* --- Right Side: Visual Panoramic Showcase --- */
+.vault-display {
+  background-color: #FFFFFF;
+  border: 1px solid #E6E8E6;
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.01);
+}
+
+.vault-frame {
+  position: relative;
+  width: 100%;
+  height: 360px;
+  border-radius: 12px;
+  overflow: hidden;
+  background-color: #F3F4F3;
+}
+
+.vault-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.5s ease;
+}
+
+.vault-frame:hover .vault-img {
+  transform: scale(1.03);
+}
+.vault-blueprint {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  background-color: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(4px);
+  padding: 5px 10px;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  border-radius: 3px;
+  color: #1A2E26;
+  border: 1px solid rgba(230, 232, 230, 0.5);
+}
+
+/* --- Bottom Specifications Data Strip --- */
+.vault-strip {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 20px;
+}
+
+.vault-specs {
+  display: flex;
+  gap: 24px;
+}
+.vault-lbl {
+  display: block;
+  font-size: 8px;
+  font-weight: 700;
+  color: #8A948F;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+}
+
+.vault-val {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1A2E26;
+}
+
+.vault-action-hub {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.vault-price {
+  font-family: Georgia, serif;
+  font-size: 20px;
+  font-weight: 600;
+  color: #1A2E26;
+}
+.vault-btn {
+  background-color: #2C4A3E;
+  color: #FFFFFF;
+  border: none;
+  padding: 10px 18px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 8px 16px rgba(44, 74, 62, 0.1);
+  transition: all 0.2s ease;
+}
+
+.vault-btn:hover {
+  background-color: #1A2E26;
+  transform: translateY(-1px);
+  box-shadow: 0 12px 20px rgba(26, 46, 38, 0.15);
+}
+/* --- 📱 Seamless Mobile Responsiveness Matrix --- */
+@media (max-width: 768px) {
+  .vault-grid {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+  
+  .vault-row.is-active {
+    transform: translateY(0);
+  }
+  
+  .vault-frame {
+    height: 280px;
+  }
+  
+  .vault-strip {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 20px;
+  }
+  
+  .vault-action-hub {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
