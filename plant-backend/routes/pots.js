@@ -1,15 +1,7 @@
-// backend/routes/pots.js - Pots API (MongoDB)
-// Admin ke pots yahan save hote hain, tabhi dusre PC / hard refresh pe bhi naye pots dikhte hain.
-// localStorage sirf ek browser tak rehta hai - isliye backend hi source of truth hai.
-//
-// Setup (2 lines):
-//   1) Is file ko backend/routes/pots.js me daalo
-//   2) server.js me add karo:  app.use('/api/pots', require('./routes/pots'));
-//   3) Backend restart karo:  npm run dev  (backend folder me)
-// Phir Admin me pot save karte hi message aayega: "Saved to server"
+// backend/routes/pots.js - Pots API (【entity-MongoDB¦canonical_name=MongoDB】)
+import express from 'express';
+import mongoose from 'mongoose';
 
-const express = require('express');
-const mongoose = require('mongoose');
 const router = express.Router();
 
 const PotSchema = new mongoose.Schema({
@@ -35,7 +27,7 @@ const PotSchema = new mongoose.Schema({
 
 const Pot = mongoose.models.Pot || mongoose.model('Pot', PotSchema);
 
-// GET /api/pots - sab pots (Pots page + Admin dono yahi padhte hain)
+// GET /api/pots - sab pots
 router.get('/', async (req, res) => {
   try {
     const pots = await Pot.find({}).sort({ createdAt: 1 });
@@ -61,7 +53,6 @@ router.put('/:id', async (req, res) => {
   try {
     const pot = await Pot.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: false });
     if (!pot) {
-      // Mongo _id nahi mila to custom id se dhoondho / naya bana do
       const created = new Pot({ ...req.body, _id: undefined });
       await created.save();
       return res.json(created);
@@ -72,7 +63,7 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// DELETE /api/pots/:id - hamesha ke liye delete (sirf Bin se Permanent Delete pe call hota hai)
+// DELETE /api/pots/:id - hamesha ke liye delete
 router.delete('/:id', async (req, res) => {
   try {
     await Pot.findByIdAndDelete(req.params.id);
@@ -82,4 +73,4 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;
