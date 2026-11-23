@@ -10,6 +10,7 @@ import { connectDB } from './config/db.js';
 // Route Imports
 import plantRoutes from './routes/plantRoutes.js';
 import authRoutes from './routes/authRoutes.js';
+import potsRoutes from './routes/pots.js';
 
 dotenv.config();
 
@@ -26,6 +27,7 @@ app.use(express.urlencoded({ extended: false }));
 // Mounting API endpoints
 app.use('/api/plants', plantRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/pots', potsRoutes);
 
 // Fallback error fallback handler
 app.use((req, res) => {
