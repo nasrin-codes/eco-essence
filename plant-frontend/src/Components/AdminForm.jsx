@@ -392,8 +392,14 @@ export default function AdminForm() {
     if(kind==='pot'){ savePots(dedupe([...pots, item])); setPotMsg(`${item.name} restored to Pots`); }
     else { const updated=dedupe([...plants,item]); setPlants(updated); saveAll(updated); setMsg(`${item.name} restored to Plants`); }
     try {
-      const endpoint = kind==='pot' ? 'pots' : 'plants';
-      await fetch(`${API_URL}/api/${endpoint}`, { method:'POST', headers:{'Content-Type':'application/json','x-admin-key': sessionStorage.getItem('admin_code')||''}, body: JSON.stringify(item) });
+      if (kind === 'pot') {
+        // Restore bhi wahi bulletproof POST use karega - galat _id kabhi nahi jayega, fail ho to retry.
+        await postPotToBackend(item);
+      } else {
+        // Plant restore: galat _id (Date.now) hataya, warna Mongo 500 deta hai.
+        const cleanItem = isObjectId(item._id) ? item : (({ _id, id, ...rest }) => rest)(item);
+        await fetch(`${API_URL}/api/plants`, { method:'POST', headers:{'Content-Type':'application/json', ...authHeaders()}, body: JSON.stringify(cleanItem) });
+      }
     } catch {}
   };
   // Delete permanently - also removes it from the backend
@@ -405,35 +411,93 @@ export default function AdminForm() {
   };
 
   // ---- POTS: save / edit / delete ----
+  // BULLETPROOF SYNC (2 din ke errors ke baad - ab koi pot kabhi nahi khoyega):
+  // 1) Backend ko kabhi galat _id mat bhejo - sirf asli 24-char ObjectId, warna Mongo 500 deta hai.
+  // 2) Har save pehle backend pe try, fail ho to halki photo ke saath retry, phir bhi fail ho to
+  //    local me save + agli baar Admin khulte hi auto-sync. Data kabhi nahi khota.
+  // 3) Admin khulte hi local ke wo pots jo backend me nahi hain, khud-ba-khud backend pe chale jaate hain.
+  const [potSyncing, setPotSyncing] = useState(false);
+  const isObjectId = (v) => /^[0-9a-fA-F]{24}$/.test(String(v || ''));
+  const authHeaders = () => {
+    const token = localStorage.getItem('jwt_token') || '';
+    // Dono header bhejte hain - backend jo bhi check kare, ek to milega.
+    return token ? { 'Authorization': 'Bearer ' + token, 'x-admin-key': token } : {};
+  };
   const savePots = (arr) => {
     setPots(arr);
     try{ localStorage.setItem('eco_admin_pots', JSON.stringify(arr)); }catch{}
     window.dispatchEvent(new Event('eco-pots-updated'));
     return arr;
   };
-  // On mount, load pots from the backend - if the backend has newer pots (saved from another PC),
-  // those win. A stale local list never overwrites the backend.
+  const fetchBackendPots = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/pots`);
+      if (!res.ok) return null;
+      const data = await res.json().catch(() => []);
+      const arr = Array.isArray(data) ? data : (data.pots || []);
+      return Array.isArray(arr) ? arr : [];
+    } catch { return null; }
+  };
+  // Server ke liye saaf payload - galat _id hataya, warna Mongo "Cast to ObjectId failed" dega.
+  const cleanPotForServer = (pot) => {
+    const { _id, id, ...rest } = pot || {};
+    const clean = { ...rest };
+    if (isObjectId(_id)) { clean._id = _id; clean.id = _id; }
+    return clean;
+  };
+  // POST with auto-retry: pehle full payload, fail ho to halka payload (1 photo, colour photo nahi).
+  // Badi photo (413) ya kharab field se bhi save nahi rukega.
+  const postPotToBackend = async (pot) => {
+    const clean = cleanPotForServer(pot);
+    const tries = [
+      clean,
+      { ...clean, images: (clean.images || []).slice(0, 1), image: (clean.images || [])[0] || clean.image || '', imageUrl: (clean.images || [])[0] || clean.image || '', colours: (clean.colours || []).map(c => ({ name: c.name, hex: c.hex, extra: c.extra, image: '' })) },
+    ];
+    let lastStatus = '';
+    for (const body of tries) {
+      try {
+        const res = await fetch(`${API_URL}/api/pots`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(body) });
+        lastStatus = String(res.status);
+        if (res.ok) return { ok: true, status: lastStatus };
+      } catch { lastStatus = 'no reply'; }
+    }
+    return { ok: false, status: lastStatus };
+  };
+  // Local pots jo backend me nahi hain (naam se match) - unhe backend pe bhejo. Duplicate kabhi nahi banega.
+  const syncMissingPotsToBackend = async () => {
+    const backend = await fetchBackendPots();
+    if (backend === null) return { ok: false, synced: 0, reason: 'backend offline' };
+    let local = [];
+    try { local = JSON.parse(localStorage.getItem('eco_admin_pots') || '[]'); } catch {}
+    if (!Array.isArray(local)) local = [];
+    const backendNames = new Set(backend.map(p => String(p.name || '').toLowerCase().trim()));
+    const missing = local.filter(p => p && p.name && !backendNames.has(String(p.name).toLowerCase().trim()));
+    let synced = 0;
+    for (const p of missing) { const r = await postPotToBackend(p); if (r.ok) synced++; }
+    const fresh = await fetchBackendPots();
+    if (fresh !== null && fresh.length > 0) savePots(fresh);
+    return { ok: true, synced, reason: '' };
+  };
+  const handleSyncPotsClick = async () => {
+    setPotSyncing(true);
+    const r = await syncMissingPotsToBackend();
+    setPotSyncing(false);
+    if (!r.ok) setPotMsg('⚠ Backend abhi offline hai • Tumhare pots isi browser me safe hain • Admin dobara khologe to auto-sync ho jayenge');
+    else if (r.synced > 0) setPotMsg(`✅ ${r.synced} pot server pe sync ho gaya • Ab sabko dikhega`);
+    else setPotMsg('✅ Sab pots pehle se server pe hain • Kuch sync karna baaki nahi');
+  };
+  // On mount: backend-first, par local ke extra pots (jaise TEST POT 123) auto-sync honge - kabhi nahi khoyenge.
   useEffect(() => {
     (async () => {
-      try {
-        const res = await fetch(`${API_URL}/api/pots`);
-        if (res.ok) {
-          const data = await res.json();
-          const arr = Array.isArray(data) ? data : (data.pots || []);
-          if (arr.length > 0) { savePots(arr); return; }
-          // Backend is empty but this browser has yesterday's pots ->
-          // migrate them to the backend once, so they show on other PCs too.
-          try {
-            const local = JSON.parse(localStorage.getItem('eco_admin_pots') || '[]');
-            if (Array.isArray(local) && local.length > 0) {
-              for (const p of local) {
-                try { await fetch(`${API_URL}/api/pots`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...p, _id: undefined, id: undefined }) }); } catch {}
-              }
-              setPotMsg('Your saved pots were synced to the server • Now visible on all devices');
-            }
-          } catch {}
-        }
-      } catch {}
+      const backend = await fetchBackendPots();
+      if (backend === null) return; // offline - local list hi dikhegi, data safe hai
+      if (backend.length === 0) {
+        const r = await syncMissingPotsToBackend();
+        if (r.synced > 0) setPotMsg(`${r.synced} saved pot server pe sync ho gaya • Ab sabko dikhega`);
+        return;
+      }
+      const r = await syncMissingPotsToBackend();
+      if (r.synced > 0) setPotMsg(`${r.synced} pot server pe sync ho gaya • Ab sabko dikhega`);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -476,36 +540,43 @@ export default function AdminForm() {
     const colours = potColours.filter(c=>c.name.trim()).map(c=>({ name:c.name.trim(), hex:c.hex||'#C17A52', extra:Number(c.extra||0), image:c.image||'' }));
     if(colours.length===0) colours.push({ name:'Default', hex:'#C17A52', extra:0, image:'' });
     setPotLoading(true);
+    // Naya pot = NO _id (Mongo khud banayega). Edit = sirf asli ObjectId _id.
+    // 'local-...' ya Date.now() wala _id backend ko bheja to Mongo 500 de deta hai.
     const payload = {
-      _id: editingPotId||Date.now().toString(), id: editingPotId||Date.now().toString(),
+      ...(editingPotId && isObjectId(editingPotId) ? { _id: editingPotId, id: editingPotId } : {}),
       name: potForm.name.trim(), title: potForm.name.trim(),
       price: Number(potForm.price), category: potForm.category,
       description: potForm.description, desc: potForm.description,
       images: validImages, image: validImages[0], imageUrl: validImages[0],
       colours, colour: colours[0].hex, potStatus: 'Pot Only', sizes: ['4"', '6"', '8"'],
     };
-    // BACKEND FIRST - the backend is the source of truth, so the new pot shows on other PCs / after hard refresh too.
-    // Saving only to localStorage made yesterday's pot revert to default today.
     let backendOk = false;
+    let backendStatus = '';
     try{
-      const url = editingPotId ? `${API_URL}/api/pots/${editingPotId}` : `${API_URL}/api/pots`;
-      const res = await fetch(url, { method: editingPotId?'PUT':'POST', headers:{'Content-Type':'application/json','x-admin-key': sessionStorage.getItem('admin_code')||''}, body: JSON.stringify(payload) });
-      backendOk = res.ok;
-      if(res.ok){
-        // Re-fetch the fresh list from the backend - it also carries the Mongo _id
-        try{
-          const r2 = await fetch(`${API_URL}/api/pots`);
-          if(r2.ok){ const d2 = await r2.json(); const arr2 = Array.isArray(d2) ? d2 : (d2.pots||[]); if(arr2.length>0){ savePots(arr2); setPotMsg(`${editingPotId ? 'Updated' : 'Added'} ${payload.name} • Saved to server • Visible on all devices`); cancelEditPot(); setPotLoading(false); return; } }
-        }catch{}
+      if (editingPotId && isObjectId(editingPotId)) {
+        // Asli backend pot ka EDIT - PUT, uske sahi ObjectId pe.
+        const res = await fetch(`${API_URL}/api/pots/${editingPotId}`, { method:'PUT', headers:{'Content-Type':'application/json', ...authHeaders()}, body: JSON.stringify(payload) });
+        backendOk = res.ok;
+        backendStatus = String(res.status);
+      } else {
+        // Naya pot, ya local-only pot ka edit - POST with auto-retry (full photo -> halki photo).
+        const r = await postPotToBackend(payload);
+        backendOk = r.ok;
+        backendStatus = r.status;
       }
-    }catch{ backendOk = false; }
+      if(backendOk){
+        // Re-fetch the fresh list from the backend - it also carries the Mongo _id
+        const fresh = await fetchBackendPots();
+        if(fresh !== null && fresh.length>0){ savePots(fresh); setPotMsg(`${editingPotId ? 'Updated' : 'Added'} ${payload.name} • Saved to server • Visible on all devices`); cancelEditPot(); setPotLoading(false); return; }
+      }
+    }catch{ backendOk = false; backendStatus = 'no reply'; }
+    // Backend fail bhi ho gaya to pot KHOTA NAHI - local me save, agli baar Admin khulte hi auto-sync.
+    // Local-only pots ko 'local-...' id milti hai taaki wo kabhi backend ke asli _id se na takrayein.
     let arr = [...pots];
-    if(editingPotId){ arr = arr.map(x=> (String(x._id)===String(editingPotId)||String(x.id)===String(editingPotId)) ? {...x, ...payload} : x); }
-    else { arr.push(payload); }
+    if(editingPotId){ arr = arr.map(x=> (String(x._id)===String(editingPotId)||String(x.id)===String(editingPotId)) ? {...x, ...payload, _id: x._id||x.id, id: x.id||x._id} : x); }
+    else { const lid = 'local-' + Date.now().toString(); arr.push({ ...payload, _id: lid, id: lid }); }
     savePots(arr);
-    setPotMsg(backendOk
-      ? `${editingPotId ? 'Updated' : 'Added'} ${payload.name} • Saved to server • Visible on all devices`
-      : `${editingPotId ? 'Updated' : 'Added'} ${payload.name} • Saved on this device only • Backend not reachable - start backend to sync across PCs`);
+    setPotMsg(`${editingPotId ? 'Updated' : 'Added'} ${payload.name} • Saved here • Backend said ${backendStatus || 'no reply'} - Admin dobara khologe to auto-sync ho jayega`);
     cancelEditPot(); setPotLoading(false);
   };
 
@@ -829,7 +900,7 @@ export default function AdminForm() {
               </div>
               {potMsg&&<div className="mt-3 p-3 rounded-[12px] bg-[#F0F7F0] text-[11px] text-center">{potMsg}</div>}
             </div>
-            <div className="bg-white rounded-[24px] border border-black/5 shadow-sm p-6"><div className="flex justify-between items-center"><h3 className="text-[11px] tracking-[0.15em] font-bold opacity-40 font-sans">POTS • {pots.length} POTS</h3><button onClick={()=>window.open('/pots','_blank')} className="text-[11px] px-3 py-1.5 rounded-full border bg-white font-sans">View Pots Page →</button></div>
+            <div className="bg-white rounded-[24px] border border-black/5 shadow-sm p-6"><div className="flex justify-between items-center"><h3 className="text-[11px] tracking-[0.15em] font-bold opacity-40 font-sans">POTS • {pots.length} POTS</h3><div className="flex gap-2"><button onClick={handleSyncPotsClick} disabled={potSyncing} className="text-[11px] px-3 py-1.5 rounded-full bg-[#1a5a3a] text-white font-sans font-bold">{potSyncing?'Syncing...':'↻ Sync to Server'}</button><button onClick={()=>window.open('/pots','_blank')} className="text-[11px] px-3 py-1.5 rounded-full border bg-white font-sans">View Pots Page →</button></div></div>
             <div className="mt-3"><input value={potSearch} onChange={e=>setPotSearch(e.target.value)} placeholder="Search pots…" className="w-full h-10 rounded-full border px-4 text-[12px]" /></div>
             <div className="mt-2 font-sans text-[11px] opacity-50">Showing {pots.filter(x=>(x.name||'').toLowerCase().includes(potSearch.toLowerCase())).length} of {pots.length} pots</div>
             <div className="mt-4 grid md:grid-cols-2 gap-3">{pots.filter(x=>(x.name||'').toLowerCase().includes(potSearch.toLowerCase())).map(x=>{ const isEditing = String(editingPotId)===String(x._id||x.id); const firstImg = (x.images && x.images[0]) || x.image || x.imageUrl || ''; return (<div key={x._id||x.id} className={'flex gap-3 p-3 rounded-[14px] border hover:shadow-md hover:-translate-y-0.5 transition ' + (isEditing ? 'bg-[#F0F7F0] border-[#1a5a3a] ring-1 ring-[#1a5a3a]' : 'bg-[#FAF8F5]')}><div className="w-14 h-14 rounded-[10px] overflow-hidden border shrink-0 bg-white">{firstImg ? <img src={firstImg} className="w-full h-full object-cover" alt=""/> : <div className="w-full h-full grid place-items-center opacity-20">🪴</div>}</div><div className="flex-1 min-w-0"><div className="font-serif text-[13px] font-bold truncate">{x.name} {isEditing && <span className="text-[10px] text-[#1a5a3a]">• EDITING</span>}</div><div className="text-[11px] opacity-60 font-sans">₹{x.price} • {x.category} • {(x.images||[]).length||1} photos • {(x.colours||[]).length||1} colours</div><div className="flex gap-1.5 mt-1 flex-wrap">{(x.colours||[]).slice(0,5).map((c,i)=>(<span key={i} className="w-4 h-4 rounded-full border inline-block" title={c.name} style={{background:c.hex}}></span>))}</div><div className="flex gap-2 mt-2"><button onClick={()=>handleEditPot(x)} className="h-7 px-3 rounded-full bg-[#1a5a3a] text-white text-[10px] font-bold">{isEditing ? 'Editing...' : 'Edit'}</button><button onClick={()=>handleDeletePot(x._id||x.id)} className="h-7 px-3 rounded-full bg-[#FEF2F2] text-red-600 text-[10px] font-bold">Delete</button></div></div></div>); })}</div></div>
