@@ -436,13 +436,34 @@ export default function AdminForm() {
   const mergePotsKeepLocal = (backendList, localList) => {
     const byId = new Map();
     const byName = new Map();
+    const localById = new Map();
+    const localByName = new Map();
+    for (const p of localList || []) {
+      if (!p || !p.name) continue;
+      const idKey = String(p._id || p.id || '');
+      if (idKey) localById.set(idKey, p);
+      localByName.set(String(p.name).toLowerCase().trim(), p);
+    }
+    const potHasPhoto = (p) => (p.images && p.images.some(Boolean)) || !!p.image || !!p.imageUrl;
     const out = [];
     for (const p of backendList || []) {
       if (!p) continue;
-      out.push(p);
-      if (p._id) byId.set(String(p._id), p);
-      if (p.id) byId.set(String(p.id), p);
-      if (p.name) byName.set(String(p.name).toLowerCase().trim(), p);
+      // Server wala pot photo ke bina aaya (ULTRA) aur local me uski photo hai - photo wapas bhar do, warna Admin se bhi photo mit jayegi.
+      const lp = localById.get(String(p._id || p.id || '')) || localByName.get(String(p.name || '').toLowerCase().trim());
+      let merged = p;
+      if (lp && !potHasPhoto(p) && potHasPhoto(lp)) {
+        merged = { ...p, images: lp.images, image: lp.image || (lp.images || [])[0] || '', imageUrl: lp.imageUrl || lp.image || (lp.images || [])[0] || '', colours: lp.colours || p.colours };
+      } else if (lp && lp.colours && p.colours) {
+        const filled = p.colours.map(c => {
+          const lc = lp.colours.find(x => String(x.name || '').toLowerCase().trim() === String(c.name || '').toLowerCase().trim());
+          return (!c.image && lc && lc.image) ? { ...c, image: lc.image } : c;
+        });
+        if (filled.some((c, i) => c.image !== p.colours[i].image)) merged = { ...p, colours: filled };
+      }
+      out.push(merged);
+      if (merged._id) byId.set(String(merged._id), merged);
+      if (merged.id) byId.set(String(merged.id), merged);
+      if (merged.name) byName.set(String(merged.name).toLowerCase().trim(), merged);
     }
     for (const p of localList || []) {
       if (!p || !p.name) continue;
@@ -690,7 +711,7 @@ export default function AdminForm() {
         // Re-fetch the fresh list from the backend - it also carries the Mongo _id
         const fresh = await fetchBackendPots();
         if(fresh !== null) setPotServerCount(fresh.length);
-        if(fresh !== null && fresh.length>0){ savePots(fresh); setPotMsg(`${editingPotId ? 'Updated' : 'Added'} ${payload.name} • Saved to server • Visible on all devices`); cancelEditPot(); setPotLoading(false); return; }
+        if(fresh !== null && fresh.length>0){ savePots(mergePotsKeepLocal(fresh, pots)); setPotMsg(`${editingPotId ? 'Updated' : 'Added'} ${payload.name} • Saved to server • Visible on all devices`); cancelEditPot(); setPotLoading(false); return; }
       }
     }catch{ backendOk = false; backendStatus = 'no reply'; }
     // Backend fail bhi ho gaya to pot KHOTA NAHI - local me save, agli baar Admin khulte hi auto-sync.
