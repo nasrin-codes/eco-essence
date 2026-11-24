@@ -151,11 +151,14 @@ export default function Navbar() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&display=swap');
         .font-serif{font-family:"Instrument Serif",serif} .font-sans{font-family:"Inter",sans-serif}
+        .scrollbar-hide::-webkit-scrollbar{display:none} .scrollbar-hide{scrollbar-width:none;-ms-overflow-style:none}
+        *{-webkit-tap-highlight-color:transparent} html{scroll-behavior:smooth}
+        @media (max-width:767px){ body{padding-bottom:66px} }
       `}</style>
       <nav className="w-full h-[68px] bg-[#FAF8F5]/95 backdrop-blur-md border-b border-black/[0.06] sticky top-0 z-[100] flex items-center">
-        <div className="max-w-[1440px] w-full mx-auto px-6 lg:px-10 flex items-center justify-between">
+        <div className="max-w-[1440px] w-full mx-auto px-4 md:px-6 lg:px-10 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
-            <span className="font-serif italic text-[24px] text-[#1a5a3a] tracking-[-0.02em]">Eco-Essence.</span><span className="text-[18px]">🌿</span>
+            <span className="font-serif italic text-[20px] md:text-[24px] text-[#1a5a3a] tracking-[-0.02em]">Eco-Essence.</span><span className="text-[15px] md:text-[18px]">🌿</span>
           </Link>
           <div className="hidden md:flex items-center gap-8">
             <div className="relative" onMouseEnter={handleShopEnter} onMouseLeave={handleShopLeave}>
@@ -206,13 +209,13 @@ export default function Navbar() {
             </div>
             <Link to="/contact" className={`font-sans text-[12px] tracking-[0.12em] font-semibold py-3 ${isActive('/contact')?'text-[#1a5a3a]':'text-[#1A1A1A]/60 hover:text-[#1a5a3a]'}`}>CONTACT</Link>
           </div>
-          <div className="flex items-center gap-3">
-            <Link to="/cart" className="h-9 px-4 rounded-full border border-black/10 bg-white font-sans text-[11px] font-bold flex items-center gap-1.5 hover:bg-black hover:text-white transition">CART {isLoggedIn && cartCount>0 && <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-[#1a5a3a] text-white text-[10px] grid place-items-center">{cartCount}</span>}</Link>
+          <div className="flex items-center gap-2 md:gap-3">
+            <Link to="/cart" className="h-9 px-3 md:px-4 rounded-full border border-black/10 bg-white font-sans text-[11px] font-bold flex items-center gap-1.5 hover:bg-black hover:text-white transition"><svg viewBox="0 0 24 24" className="w-[18px] h-[18px] sm:hidden" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M6 8h12l-1 12H7L6 8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg><span className="hidden sm:inline">CART</span> {isLoggedIn && cartCount>0 && <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-[#1a5a3a] text-white text-[10px] grid place-items-center">{cartCount}</span>}</Link>
             <div className="relative">
               {isLoggedIn ? (
                 <button onClick={()=>setShowProfile(!showProfile)} className="h-9 pl-1 pr-3 rounded-full bg-black text-white font-sans text-[11px] font-bold flex items-center gap-2"><span className="w-7 h-7 rounded-full bg-white text-black grid place-items-center text-[11px] font-bold">{getInitial()}</span>{getDisplay()}</button>
               ) : (
-                <button onClick={()=>setShowProfile(!showProfile)} className="h-9 px-4 rounded-full bg-black text-white font-sans text-[11px] font-bold">PROFILE</button>
+                <button onClick={()=>setShowProfile(!showProfile)} className="h-9 px-3 md:px-4 rounded-full bg-black text-white font-sans text-[11px] font-bold">PROFILE</button>
               )}
               {showProfile && (
                 <div className="absolute right-0 top-[44px] w-[280px] bg-white rounded-[20px] border border-black/[0.06] shadow-[0_20px_50px_rgba(0,0,0,0.12)] p-0 overflow-hidden z-[110]">
@@ -250,6 +253,23 @@ export default function Navbar() {
           </div>
         </div>
       </nav>
+      {/* MOBILE BOTTOM TAB BAR - app style: Home / Shop / Pots / Cart */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-[100] bg-white/95 backdrop-blur-md border-t border-black/[0.06] pb-[env(safe-area-inset-bottom)]">
+        <div className="grid grid-cols-4 h-[62px]">
+          <button onClick={() => navigate('/')} className={'flex flex-col items-center justify-center gap-[3px] font-sans text-[10px] font-bold active:scale-95 transition ' + (location.pathname === '/' ? 'text-[#1a5a3a]' : 'text-black/40')}>
+            <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 10.5 12 3l9 7.5V21h-6v-6h-6v6H3z" /></svg>Home
+          </button>
+          <button onClick={() => navigate('/shop')} className={'flex flex-col items-center justify-center gap-[3px] font-sans text-[10px] font-bold active:scale-95 transition ' + (location.pathname === '/shop' ? 'text-[#1a5a3a]' : 'text-black/40')}>
+            <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="4" y="4" width="7" height="7" rx="1.5" /><rect x="13" y="4" width="7" height="7" rx="1.5" /><rect x="4" y="13" width="7" height="7" rx="1.5" /><rect x="13" y="13" width="7" height="7" rx="1.5" /></svg>Shop
+          </button>
+          <button onClick={() => { window.location.href = '/pots'; }} className={'flex flex-col items-center justify-center gap-[3px] font-sans text-[10px] font-bold active:scale-95 transition ' + (location.pathname === '/pots' ? 'text-[#1a5a3a]' : 'text-black/40')}>
+            <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M5 9h14l-1.3 10H6.3L5 9z" /><path d="M9 9c0-3 1.3-4.5 3-4.5S15 6 15 9" /></svg>Pots
+          </button>
+          <button onClick={() => navigate('/cart')} className={'relative flex flex-col items-center justify-center gap-[3px] font-sans text-[10px] font-bold active:scale-95 transition ' + (location.pathname === '/cart' ? 'text-[#1a5a3a]' : 'text-black/40')}>
+            <span className="relative"><svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M6 8h12l-1 12H7L6 8z" /><path d="M9 8V6a3 3 0 0 1 6 0v2" /></svg>{isLoggedIn && cartCount > 0 && <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-0.5 rounded-full bg-[#1a5a3a] text-white text-[9px] grid place-items-center">{cartCount}</span>}</span>Cart
+          </button>
+        </div>
+      </div>
       {showMobile && (
         <div className="md:hidden fixed top-[68px] left-0 w-full bg-[#FAF8F5] border-b z-[99] p-6 space-y-4 max-h-[80vh] overflow-auto">
           <div><div className="font-sans text-[13px] font-bold mb-3">SHOP</div><div className="grid grid-cols-2 gap-2">{SHOP_MENU.map(m=><button key={m.id} onClick={()=>goToShop(m.id)} className="text-left font-sans text-[12px] py-3 px-4 rounded-[12px] bg-white border flex gap-2"><span>{m.icon}</span>{m.label}</button>)}</div></div>
