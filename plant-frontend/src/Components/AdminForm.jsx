@@ -429,6 +429,29 @@ export default function AdminForm() {
     window.dispatchEvent(new Event('eco-pots-updated'));
     return arr;
   };
+  // MERGE - backend list + local-only pots. Backend jeetta hai jab _id ya naam same ho,
+  // par local-only pot (jo backend pe kabhi pahuncha hi nahi) KABHI delete nahi hoga.
+  // Pehle savePots(fresh) local ko backend se overwrite kar deta tha - isliye pot "gayab" ho jata tha.
+  const mergePotsKeepLocal = (backendList, localList) => {
+    const byId = new Map();
+    const byName = new Map();
+    const out = [];
+    for (const p of backendList || []) {
+      if (!p) continue;
+      out.push(p);
+      if (p._id) byId.set(String(p._id), p);
+      if (p.id) byId.set(String(p.id), p);
+      if (p.name) byName.set(String(p.name).toLowerCase().trim(), p);
+    }
+    for (const p of localList || []) {
+      if (!p || !p.name) continue;
+      const idKey = String(p._id || p.id || '');
+      if (idKey && byId.has(idKey)) continue; // backend me hai - backend wala rakho
+      if (byName.has(String(p.name).toLowerCase().trim())) continue; // naam se backend me hai - duplicate nahi
+      out.push(p);
+    }
+    return out;
+  };
   const fetchBackendPots = async () => {
     try {
       const res = await fetch(`${API_URL}/api/pots`);
@@ -536,8 +559,23 @@ export default function AdminForm() {
         if (r.ok) synced++;
       }
     }
+    // 3) Bin me gaya pot backend pe bacha ho to hatao - warna wapas aa jayega.
+    let bin = [];
+    try { bin = JSON.parse(localStorage.getItem('eco_deleted_bin') || '[]'); } catch {}
+    if (Array.isArray(bin)) {
+      const localIds = new Set(local.map(p => String(p._id || p.id || '')));
+      const localNames = new Set(local.map(p => String(p.name || '').toLowerCase().trim()));
+      for (const bp of backend) {
+        const bpId = String(bp._id || bp.id || '');
+        const bpName = String(bp.name || '').toLowerCase().trim();
+        if (localIds.has(bpId) || localNames.has(bpName)) continue; // zinda pot - haath mat lagao
+        const inBin = bin.some(b => b && b.kind === 'pot' && (String(b._id || b.id || '') === bpId || String(b.name || '').toLowerCase().trim() === bpName));
+        if (inBin) { const ok = await deletePotFromBackend(bp._id || bp.id); if (ok) synced++; }
+      }
+    }
     const fresh = await fetchBackendPots();
-    if (fresh !== null && fresh.length > 0) savePots(fresh);
+    // OVERWRITE NAHI - MERGE. Backend pe na pahuncha pot local me zinda rahega aur dobara try hoga.
+    if (fresh !== null && fresh.length > 0) savePots(mergePotsKeepLocal(fresh, local));
     return { ok: true, synced, reason: '' };
   };
   const handleSyncPotsClick = async () => {
@@ -621,10 +659,11 @@ export default function AdminForm() {
         const r = await putPotToBackend(editingPotId, payload);
         backendOk = r.ok; backendStatus = r.status; backendError = r.error || '';
         if (!backendOk) {
-          // PUT na chala to purana delete + naya POST - purana naam backend pe kabhi nahi atkega.
-          await deletePotFromBackend(editingPotId);
-          const r2 = await postPotToBackend(payload);
+          // PEHLE naya POST - tabhi purana delete. Ulta karne se POST fail hone pe pot hamesha ke liye gayab ho jata tha.
+          const { _id: _dropId, id: _dropId2, ...noIdPayload } = payload;
+          const r2 = await postPotToBackend(noIdPayload);
           backendOk = r2.ok; backendStatus = r2.status; backendError = r2.error || '';
+          if (backendOk) await deletePotFromBackend(editingPotId);
         }
       } else {
         // Naya pot, ya local-only pot ka edit - POST with auto-retry (3 tareeke).
