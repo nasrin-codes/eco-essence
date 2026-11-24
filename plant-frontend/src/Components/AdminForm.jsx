@@ -490,9 +490,29 @@ export default function AdminForm() {
     if (isObjectId(_id)) { clean._id = _id; clean.id = _id; }
     return clean;
   };
-  // POST with auto-retry: 4 tareekon se try karo - backend jo bhi maange, ek to chalega.
+  // Photo ko aur chhota karo (500px, quality 0.6) - backend ki 100kb limit ho to bhi photo pahunch jaye. Fail ho to original hi wapas.
+  const shrinkPhoto = (dataUrl, maxDim = 500, quality = 0.6) => new Promise((resolve) => {
+    try {
+      if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image')) { resolve(dataUrl || ''); return; }
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          let w = img.width, h = img.height;
+          if (w > h) { if (w > maxDim) { h *= maxDim / w; w = maxDim; } }
+          else { if (h > maxDim) { w *= maxDim / h; h = maxDim; } }
+          canvas.width = Math.max(1, Math.round(w)); canvas.height = Math.max(1, Math.round(h));
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        } catch { resolve(dataUrl); }
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    } catch { resolve(dataUrl || ''); }
+  });
+  // POST with auto-retry: 5 tareekon se try karo - backend jo bhi maange, ek to chalega.
   // 1) Full photo + login token, 2) Full photo bina token (kuch backend token pe preflight rok dete hain),
-  // 3) Halki photo (1 photo, colour photo BILKUL NAHI) bina token, 4) Bina photo ke sirf text - tab bhi pot server pe pahunchega.
+  // 3) Halki photo (1 photo, colour photo BILKUL NAHI) bina token, 4) TINY photo (500px) bina token, 5) Bina photo ke sirf text - tab bhi pot server pe pahunchega.
   // Jo bhi backend bolega (404 / 401 / 500 / uska error text), wo wapas bhejo taaki message me saaf dikhe.
   const postPotToBackend = async (pot) => {
     const clean = cleanPotForServer(pot);
@@ -501,10 +521,14 @@ export default function AdminForm() {
     const light = { ...clean, images: (clean.images || []).slice(0, 1), image: (clean.images || [])[0] || clean.image || '', imageUrl: (clean.images || [])[0] || clean.image || '', colours: noColourImgs };
     // ULTRA = koi photo nahi, sirf text - backend ki photo-limit kuch bhi ho, pot server pe pahunchega hi.
     const ultra = { ...clean, images: [], image: '', imageUrl: '', colours: noColourImgs };
+    // TINY = 1 photo ko 500px tak chhota karke - backend ki 100kb limit ho to bhi photo pahunch jaye.
+    const tinyPhoto = await shrinkPhoto((clean.images || [])[0] || clean.image || '');
+    const tiny = { ...clean, images: tinyPhoto ? [tinyPhoto] : [], image: tinyPhoto, imageUrl: tinyPhoto, colours: noColourImgs };
     const tries = [
       { body: clean, headers: { 'Content-Type': 'application/json', ...authHeaders() } },
       { body: clean, headers: { 'Content-Type': 'application/json' } },
       { body: light, headers: { 'Content-Type': 'application/json' } },
+      { body: tiny, headers: { 'Content-Type': 'application/json' } },
       { body: ultra, headers: { 'Content-Type': 'application/json' } },
     ];
     let lastStatus = '';
@@ -519,17 +543,20 @@ export default function AdminForm() {
     }
     return { ok: false, status: lastStatus, error: lastError };
   };
-  // PUT with auto-retry: edit bhi POST jaisa - 4 tareekon se try, ek to chalega.
+  // PUT with auto-retry: edit bhi POST jaisa - 5 tareekon se try, ek to chalega.
   const putPotToBackend = async (id, pot) => {
     const { _id, id: _drop, ...body } = pot || {};
     const clean = { ...body };
     const noColourImgs = (clean.colours || []).map(c => ({ name: c.name, hex: c.hex, extra: c.extra, image: '' }));
     const light = { ...clean, images: (clean.images || []).slice(0, 1), image: (clean.images || [])[0] || clean.image || '', imageUrl: (clean.images || [])[0] || clean.image || '', colours: noColourImgs };
     const ultra = { ...clean, images: [], image: '', imageUrl: '', colours: noColourImgs };
+    const tinyPhoto = await shrinkPhoto((clean.images || [])[0] || clean.image || '');
+    const tiny = { ...clean, images: tinyPhoto ? [tinyPhoto] : [], image: tinyPhoto, imageUrl: tinyPhoto, colours: noColourImgs };
     const tries = [
       { body: clean, headers: { 'Content-Type': 'application/json', ...authHeaders() } },
       { body: clean, headers: { 'Content-Type': 'application/json' } },
       { body: light, headers: { 'Content-Type': 'application/json' } },
+      { body: tiny, headers: { 'Content-Type': 'application/json' } },
       { body: ultra, headers: { 'Content-Type': 'application/json' } },
     ];
     let lastStatus = '', lastError = '';
@@ -711,7 +738,17 @@ export default function AdminForm() {
         // Re-fetch the fresh list from the backend - it also carries the Mongo _id
         const fresh = await fetchBackendPots();
         if(fresh !== null) setPotServerCount(fresh.length);
-        if(fresh !== null && fresh.length>0){ savePots(mergePotsKeepLocal(fresh, pots)); setPotMsg(`${editingPotId ? 'Updated' : 'Added'} ${payload.name} • Saved to server • Visible on all devices`); cancelEditPot(); setPotLoading(false); return; }
+        if(fresh !== null && fresh.length>0){
+          // Nayi photo sirf payload me hai - purani list aur server dono me nahi. Pehle payload ko local list me milao, phir merge karo, warna photo phir gayab.
+          let localWithNew = [...pots];
+          if (editingPotId) {
+            localWithNew = localWithNew.map(x => (String(x._id) === String(editingPotId) || String(x.id) === String(editingPotId)) ? { ...x, ...payload, _id: x._id || x.id, id: x.id || x._id } : x);
+          } else if (!localWithNew.some(x => String(x.name || '').toLowerCase().trim() === String(payload.name).toLowerCase().trim())) {
+            localWithNew.push(payload);
+          }
+          savePots(mergePotsKeepLocal(fresh, localWithNew));
+          setPotMsg(`${editingPotId ? 'Updated' : 'Added'} ${payload.name} • Saved to server • Visible on all devices`); cancelEditPot(); setPotLoading(false); return;
+        }
       }
     }catch{ backendOk = false; backendStatus = 'no reply'; }
     // Backend fail bhi ho gaya to pot KHOTA NAHI - local me save, agli baar Admin khulte hi auto-sync.
