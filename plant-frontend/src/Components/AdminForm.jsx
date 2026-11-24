@@ -451,7 +451,7 @@ export default function AdminForm() {
   // Jo bhi backend bolega (404 / 401 / 500 / uska error text), wo wapas bhejo taaki message me saaf dikhe.
   const postPotToBackend = async (pot) => {
     const clean = cleanPotForServer(pot);
-    const light = { ...clean, images: (clean.images || []).slice(0, 1), image: (clean.images || [])[0] || clean.image || '', imageUrl: (clean.images || [])[0] || clean.image || '', colours: (clean.colours || []).map(c => ({ name: c.name, hex: c.hex, extra: c.extra, image: '' })) };
+    const light = { ...clean, images: (clean.images || []).slice(0, 1), image: (clean.images || [])[0] || clean.image || '', imageUrl: (clean.images || [])[0] || clean.image || '', colours: (clean.colours || []).map(c => ({ name: c.name, hex: c.hex, extra: c.extra, image: c.image || '' })) };
     const tries = [
       { body: clean, headers: { 'Content-Type': 'application/json', ...authHeaders() } },
       { body: clean, headers: { 'Content-Type': 'application/json' } },
@@ -473,7 +473,7 @@ export default function AdminForm() {
   const putPotToBackend = async (id, pot) => {
     const { _id, id: _drop, ...body } = pot || {};
     const clean = { ...body };
-    const light = { ...clean, images: (clean.images || []).slice(0, 1), image: (clean.images || [])[0] || clean.image || '', imageUrl: (clean.images || [])[0] || clean.image || '', colours: (clean.colours || []).map(c => ({ name: c.name, hex: c.hex, extra: c.extra, image: '' })) };
+    const light = { ...clean, images: (clean.images || []).slice(0, 1), image: (clean.images || [])[0] || clean.image || '', imageUrl: (clean.images || [])[0] || clean.image || '', colours: (clean.colours || []).map(c => ({ name: c.name, hex: c.hex, extra: c.extra, image: c.image || '' })) };
     const tries = [
       { body: clean, headers: { 'Content-Type': 'application/json', ...authHeaders() } },
       { body: clean, headers: { 'Content-Type': 'application/json' } },
