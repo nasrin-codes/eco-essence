@@ -11,6 +11,8 @@ import { connectDB } from './config/db.js';
 import plantRoutes from './routes/plantRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import potsRoutes from './routes/pots.js';
+import ordersRoutes from './routes/orders.js';
+import usersRoutes from './routes/users.js';
 
 dotenv.config();
 
@@ -28,6 +30,8 @@ app.use(express.urlencoded({ extended: false }));
 app.use('/api/plants', plantRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/pots', potsRoutes);
+app.use('/api/orders', ordersRoutes);
+app.use('/api/users', usersRoutes);
 
 // Fallback error fallback handler
 app.use((req, res) => {
