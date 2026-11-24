@@ -68,6 +68,26 @@ export default function Shop() {
     return !!(token || (userName && userName !== 'USER' && userName.length > 1) || userEmail);
   };
 
+  // CART KEY - Cart page / Navbar / Pot / ProductDetail jaisa per-user key.
+  // Pehle Shop generic 'eco_cart' padhta tha, baaki sab eco_cart_<email> - isliye sign-in ke baad cart khaali dikhta tha.
+  const getCartEmail = () => (localStorage.getItem('plant_user_email') || localStorage.getItem('user_email') || '').trim().toLowerCase();
+  const cartKey = () => `eco_cart_${getCartEmail()}`;
+  const loadShopCart = () => {
+    try {
+      const email = getCartEmail();
+      if (!email) { setCart([]); return; }
+      const raw = localStorage.getItem(cartKey());
+      let arr = raw ? JSON.parse(raw) : null;
+      if (!Array.isArray(arr)) arr = [];
+      if (raw === null) {
+        for (const gk of ['eco_cart', 'cart', 'eco_shop_cart']) {
+          try { const g = JSON.parse(localStorage.getItem(gk) || '[]'); if (Array.isArray(g) && g.length > 0) { arr = g; localStorage.setItem(cartKey(), JSON.stringify(g)); localStorage.removeItem(gk); break; } } catch {}
+        }
+      }
+      setCart(arr);
+    } catch { setCart([]); }
+  };
+
   const requireLogin = (action = 'add to cart') => {
     if (isLoggedIn()) return true;
     localStorage.setItem('eco_redirect_after_login', '/shop');
@@ -132,13 +152,13 @@ export default function Shop() {
       }catch{}
     }
     fetchPlants();
-    try{ setCart(JSON.parse(localStorage.getItem('eco_cart')||'[]')); }catch{}
+    loadShopCart();
     const catFromUrl = searchParams.get('category');
     if(catFromUrl) setFilter(catFromUrl);
   },[searchParams]);
 
   useEffect(()=>{
-    const check=()=>{ try{ setCart(JSON.parse(localStorage.getItem('eco_cart')||'[]')); }catch{} };
+    const check=()=>{ loadShopCart(); };
     window.addEventListener('storage',check);
     const iv=setInterval(check,1000);
     return()=>{ window.removeEventListener('storage',check); clearInterval(iv); };
@@ -216,7 +236,7 @@ export default function Shop() {
 
       {/* CART - ONLY IF LOGGED IN */}
       {showCart && isLoggedIn() && (
-        <div className="fixed inset-0 z-[100] flex justify-end"><div className="flex-1 bg-black/30" onClick={()=>setShowCart(false)}></div><div className="w-full max-w-[420px] bg-white h-full p-6 flex flex-col"><div className="flex justify-between"><h3 className="font-serif text-[18px] font-bold">Cart • {cart.length}</h3><button onClick={()=>setShowCart(false)} className="w-9 h-9 rounded-full border grid place-items-center">✕</button></div><div className="mt-5 space-y-3 flex-1 overflow-auto">{cart.map(i=><div key={i.id} className="flex gap-3 p-3 border rounded-[14px]"><img src={i.img||i.image} className="w-14 h-14 rounded-[10px] object-cover"/><div className="flex-1"><div className="text-[13px] font-medium">{i.name}</div><div className="text-[13px] font-bold mt-1">₹{i.total||i.price}</div></div><button onClick={()=>{ const nc=cart.filter(c=>c.id!==i.id); setCart(nc); localStorage.setItem('eco_cart', JSON.stringify(nc)); }} className="text-[11px] text-red-500">Remove</button></div>)}</div><div className="mt-6"><button onClick={()=>{setShowCart(false); setShowCheckout(true);}} className="w-full h-12 rounded-full bg-black text-white font-semibold">Proceed to Buy →</button><button onClick={()=>{setShowCart(false); navigate('/cart');}} className="w-full mt-2 h-10 rounded-full border text-[12px]">View Full Cart</button></div></div></div>
+        <div className="fixed inset-0 z-[100] flex justify-end"><div className="flex-1 bg-black/30" onClick={()=>setShowCart(false)}></div><div className="w-full max-w-[420px] bg-white h-full p-6 flex flex-col"><div className="flex justify-between"><h3 className="font-serif text-[18px] font-bold">Cart • {cart.length}</h3><button onClick={()=>setShowCart(false)} className="w-9 h-9 rounded-full border grid place-items-center">✕</button></div><div className="mt-5 space-y-3 flex-1 overflow-auto">{cart.map(i=><div key={i.id} className="flex gap-3 p-3 border rounded-[14px]"><img src={i.img||i.image} className="w-14 h-14 rounded-[10px] object-cover"/><div className="flex-1"><div className="text-[13px] font-medium">{i.name}</div><div className="text-[13px] font-bold mt-1">₹{i.total||i.price}</div></div><button onClick={()=>{ const nc=cart.filter(c=>c.id!==i.id); setCart(nc); localStorage.setItem(cartKey(), JSON.stringify(nc)); }} className="text-[11px] text-red-500">Remove</button></div>)}</div><div className="mt-6"><button onClick={()=>{setShowCart(false); setShowCheckout(true);}} className="w-full h-12 rounded-full bg-black text-white font-semibold">Proceed to Buy →</button><button onClick={()=>{setShowCart(false); navigate('/cart');}} className="w-full mt-2 h-10 rounded-full border text-[12px]">View Full Cart</button></div></div></div>
       )}
 
       {showCheckout && isLoggedIn() && (
@@ -228,7 +248,7 @@ export default function Shop() {
               <input placeholder="Phone *" value={delivery.phone} onChange={e=>setDelivery({...delivery,phone:e.target.value})} className="h-11 rounded-full border px-5 text-[13px]"/>
               <input placeholder="Address Line 1 *" value={delivery.address1} onChange={e=>setDelivery({...delivery,address1:e.target.value})} className="h-11 rounded-full border px-5 text-[13px]"/>
               <div className="grid grid-cols-2 gap-3"><input placeholder="City *" value={delivery.city} onChange={e=>setDelivery({...delivery,city:e.target.value})} className="h-11 rounded-full border px-5 text-[13px]"/><input placeholder="Pincode *" value={delivery.pincode} onChange={e=>setDelivery({...delivery,pincode:e.target.value})} className="h-11 rounded-full border px-5 text-[13px]"/></div>
-              <div className="flex gap-2 mt-2"><button onClick={()=>{ if(!delivery.name||!delivery.phone||!delivery.address1||!delivery.pincode){ alert('Fill required *'); return; } const orders=JSON.parse(localStorage.getItem('eco_orders')||'[]'); const newOrder={ id:Date.now().toString(), customerName: delivery.name, phone: delivery.phone, address: { address1: delivery.address1, city: delivery.city, pincode: delivery.pincode, full: `${delivery.address1}, ${delivery.city} ${delivery.pincode}` }, items:cart, total:cart.reduce((s,i)=>s+(i.total||i.price||0),0), date: new Date().toISOString(), status:'pending'}; localStorage.setItem('eco_orders', JSON.stringify([...orders,newOrder])); setCart([]); localStorage.setItem('eco_cart','[]'); setShowCheckout(false); alert(`Order placed!`); navigate('/orders'); }} className="flex-1 h-11 rounded-full bg-black text-white text-[12px]">Place Order • ₹{cart.reduce((s,i)=>s+(i.total||i.price||0),0)}</button><button onClick={()=>setShowCheckout(false)} className="h-11 px-6 rounded-full border text-[12px]">Cancel</button></div>
+              <div className="flex gap-2 mt-2"><button onClick={()=>{ if(!delivery.name||!delivery.phone||!delivery.address1||!delivery.pincode){ alert('Fill required *'); return; } const orders=JSON.parse(localStorage.getItem('eco_orders')||'[]'); const newOrder={ id:Date.now().toString(), customerName: delivery.name, phone: delivery.phone, address: { address1: delivery.address1, city: delivery.city, pincode: delivery.pincode, full: `${delivery.address1}, ${delivery.city} ${delivery.pincode}` }, items:cart, total:cart.reduce((s,i)=>s+(i.total||i.price||0),0), date: new Date().toISOString(), status:'pending'}; localStorage.setItem('eco_orders', JSON.stringify([...orders,newOrder])); setCart([]); localStorage.setItem(cartKey(),'[]'); localStorage.setItem('eco_cart','[]'); localStorage.setItem('cart','[]'); setShowCheckout(false); alert(`Order placed!`); navigate('/orders'); }} className="flex-1 h-11 rounded-full bg-black text-white text-[12px]">Place Order • ₹{cart.reduce((s,i)=>s+(i.total||i.price||0),0)}</button><button onClick={()=>setShowCheckout(false)} className="h-11 px-6 rounded-full border text-[12px]">Cancel</button></div>
             </div>
           </div>
         </div>
