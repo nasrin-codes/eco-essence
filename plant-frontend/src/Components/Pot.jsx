@@ -167,19 +167,19 @@ export default function Pot() {
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] text-[#1A1A1A]">
-      <div className="max-w-[1160px] mx-auto px-6 py-10">
+      <div className="max-w-[1160px] mx-auto px-4 md:px-6 py-6 md:py-10">
         <div className="font-sans text-[11px] tracking-[0.2em] text-black/40">ECO-ESSENCE.</div>
-        <h1 className="font-serif text-[48px] leading-[0.95] font-bold mt-4">Pots that let plants<br /><span className="italic font-normal">breathe.</span></h1>
+        <h1 className="font-serif text-[38px] md:text-[48px] leading-[0.95] font-bold mt-3 md:mt-4">Pots that let plants<br /><span className="italic font-normal">breathe.</span></h1>
         <p className="font-sans text-[13px] text-black/50 mt-4 max-w-[440px] leading-6">Choose from 8 pot styles. Pot price is separate — plant price never changes automatically.</p>
-        <div className="flex gap-2 flex-wrap mt-8">
-          <button onClick={() => { setFilter('all'); setSelected(null); }} className={'h-9 px-5 rounded-full font-sans text-[12px] font-bold ' + (filter === 'all' ? 'bg-black text-white' : 'bg-white border border-black/10')}>All Pots</button>
+        <div className="flex gap-2 flex-nowrap overflow-x-auto scrollbar-hide snap-x -mx-4 px-4 md:mx-0 md:px-0 py-1 mt-6 md:mt-8">
+          <button onClick={() => { setFilter('all'); setSelected(null); }} className={'h-9 px-4 md:px-5 rounded-full font-sans text-[12px] font-bold shrink-0 snap-start active:scale-95 transition ' + (filter === 'all' ? 'bg-black text-white' : 'bg-white border border-black/10')}>All Pots</button>
           {FILTERS.map((f) => (
-            <button key={f} onClick={() => { setFilter(f); setSelected(null); }} className={'h-9 px-5 rounded-full font-sans text-[12px] font-bold ' + (filter === f ? 'bg-black text-white' : 'bg-white border border-black/10')}>{f}</button>
+            <button key={f} onClick={() => { setFilter(f); setSelected(null); }} className={'h-9 px-4 md:px-5 rounded-full font-sans text-[12px] font-bold shrink-0 snap-start active:scale-95 transition ' + (filter === f ? 'bg-black text-white' : 'bg-white border border-black/10')}>{f}</button>
           ))}
         </div>
-        <button onClick={() => setShowStudio(true)} className="mt-6 w-full bg-[#1a5a3a] text-white rounded-[20px] p-4 flex items-center justify-between text-left">
-          <span className="font-serif text-[18px] font-bold">Pot Studio — Free Pot with 2 plants</span>
-          <span className="font-sans text-[12px] font-bold">View Offer →</span>
+        <button onClick={() => setShowStudio(true)} className="mt-5 md:mt-6 w-full bg-gradient-to-r from-[#1a5a3a] to-[#2f8f5b] text-white rounded-[20px] p-4 flex items-center justify-between gap-3 text-left shadow-[0_10px_30px_rgba(26,90,58,0.25)] active:scale-[0.99] transition">
+          <span className="font-serif text-[15px] md:text-[18px] font-bold leading-snug">Pot Studio — Free Pot with 2 plants</span>
+          <span className="font-sans text-[12px] font-bold shrink-0 whitespace-nowrap">View Offer →</span>
         </button>
         {showStudio && (
           <div className="mt-4 bg-white border rounded-[20px] p-6">
@@ -237,7 +237,7 @@ export default function Pot() {
             <button onClick={() => setFilter('all')} className="h-7 px-3 rounded-full border bg-white font-sans text-[11px] font-bold">Clear filter ×</button>
           </div>
         )}
-        <div id="pots-grid" className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5 mt-8">
+        <div id="pots-grid" className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-5 mt-6 md:mt-8">
           {filtered.map((pot) => {
             const key = pot._id || pot.id;
             const imgs = getImages(pot);
@@ -248,8 +248,8 @@ export default function Pot() {
             const colour = colours[cIdx] || colours[0];
             const price = Number(pot.price || 0) + Number((colour && colour.extra) || 0);
             return (
-              <div key={key} onClick={() => openDetail(pot)} className="bg-white rounded-[24px] border border-black/[0.06] p-5 cursor-pointer hover:shadow-[0_20px_40px_rgba(0,0,0,0.06)] transition">
-                <div className="relative h-[190px] rounded-[18px] bg-[#F0F7F0] overflow-hidden grid place-items-center">
+              <div key={key} onClick={() => openDetail(pot)} className="bg-white rounded-[20px] md:rounded-[24px] border border-black/[0.06] p-3 md:p-5 cursor-pointer hover:shadow-[0_20px_40px_rgba(0,0,0,0.06)] active:scale-[0.98] transition">
+                <div className="relative h-[150px] md:h-[190px] rounded-[14px] md:rounded-[18px] bg-[#F0F7F0] overflow-hidden grid place-items-center">
                   {displayImg ? <img src={displayImg} className="w-full h-full object-cover" alt={pot.name} /> : <div className="w-[70px] h-[80px] rounded-b-[28px] rounded-t-[6px]" style={{ background: (colour && colour.hex) || pot.color }} />}
                   {imgs.length > 1 && (
                     <>
@@ -258,15 +258,15 @@ export default function Pot() {
                     </>
                   )}
                 </div>
-                <div className="font-sans text-[10px] tracking-[0.15em] text-black/40 mt-4">{String(pot.desc || pot.category || '').toUpperCase()}</div>
+                <div className="font-sans text-[10px] tracking-[0.15em] text-black/40 mt-3 md:mt-4 truncate">{String(pot.category || '').toUpperCase()}</div>
                 <h3 className="font-serif text-[19px] font-bold mt-1">{pot.name}</h3>
-                <p className="font-sans text-[12px] text-black/50 mt-1">{pot.desc}</p>
+                <p className="font-sans text-[11px] md:text-[12px] text-black/50 mt-1 line-clamp-2 leading-relaxed">{pot.desc}</p>
                 <div className="flex gap-1.5 mt-3">{colours.map((c, ci) => (
-                  <button key={ci} title={c.name} onClick={(e) => { e.stopPropagation(); setColourIndex((prev) => ({ ...prev, [key]: ci })); setImgIndex((prev) => ({ ...prev, [key]: 0 })); }} className={'w-6 h-6 rounded-full border-2 ' + (cIdx === ci ? 'border-black' : 'border-black/10')} style={{ background: c.hex }} />
+                  <button key={ci} title={c.name} onClick={(e) => { e.stopPropagation(); setColourIndex((prev) => ({ ...prev, [key]: ci })); setImgIndex((prev) => ({ ...prev, [key]: 0 })); }} className={'w-5 h-5 md:w-6 md:h-6 rounded-full border-2 ' + (cIdx === ci ? 'border-black' : 'border-black/10')} style={{ background: c.hex }} />
                 ))}<span className="font-sans text-[11px] text-black/50 ml-1 self-center">{colour && colour.name}</span></div>
                 <div className="flex items-center justify-between mt-4">
-                  <span className="font-sans text-[16px] font-bold">₹{price}</span>
-                  <button onClick={(e) => { e.stopPropagation(); handleAdd(pot, false); }} className="h-9 px-4 rounded-full bg-black text-white font-sans text-[12px] font-bold hover:bg-[#1a5a3a]">Add Pot</button>
+                  <span className="font-sans text-[14px] md:text-[16px] font-bold">₹{price}</span>
+                  <button onClick={(e) => { e.stopPropagation(); handleAdd(pot, false); }} className="h-8 md:h-9 px-3 md:px-4 rounded-full bg-black text-white font-sans text-[11px] md:text-[12px] font-bold hover:bg-[#1a5a3a] active:scale-95 transition">Add Pot</button>
                 </div>
                 <div className="font-sans text-[11px] font-bold underline mt-3">View with Plant →</div>
               </div>
