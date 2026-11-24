@@ -417,6 +417,7 @@ export default function AdminForm() {
   //    local me save + agli baar Admin khulte hi auto-sync. Data kabhi nahi khota.
   // 3) Admin khulte hi local ke wo pots jo backend me nahi hain, khud-ba-khud backend pe chale jaate hain.
   const [potSyncing, setPotSyncing] = useState(false);
+  const [potServerCount, setPotServerCount] = useState(null); // server pe kitne pots - DUSRE DEVICE ko yahi dikhenge
   const isObjectId = (v) => /^[0-9a-fA-F]{24}$/.test(String(v || ''));
   const authHeaders = () => {
     const token = localStorage.getItem('jwt_token') || '';
@@ -574,6 +575,7 @@ export default function AdminForm() {
       }
     }
     const fresh = await fetchBackendPots();
+    if (fresh !== null) setPotServerCount(fresh.length); // sach saamne - server pe kitne hain
     // OVERWRITE NAHI - MERGE. Backend pe na pahuncha pot local me zinda rahega aur dobara try hoga.
     if (fresh !== null && fresh.length > 0) savePots(mergePotsKeepLocal(fresh, local));
     return { ok: true, synced, reason: '' };
@@ -675,6 +677,7 @@ export default function AdminForm() {
       if(backendOk){
         // Re-fetch the fresh list from the backend - it also carries the Mongo _id
         const fresh = await fetchBackendPots();
+        if(fresh !== null) setPotServerCount(fresh.length);
         if(fresh !== null && fresh.length>0){ savePots(fresh); setPotMsg(`${editingPotId ? 'Updated' : 'Added'} ${payload.name} • Saved to server • Visible on all devices`); cancelEditPot(); setPotLoading(false); return; }
       }
     }catch{ backendOk = false; backendStatus = 'no reply'; }
@@ -1008,7 +1011,7 @@ export default function AdminForm() {
               </div>
               {potMsg&&<div className="mt-3 p-3 rounded-[12px] bg-[#F0F7F0] text-[11px] text-center">{potMsg}</div>}
             </div>
-            <div className="bg-white rounded-[24px] border border-black/5 shadow-sm p-6"><div className="flex justify-between items-center"><h3 className="text-[11px] tracking-[0.15em] font-bold opacity-40 font-sans">POTS • {pots.length} POTS</h3><div className="flex gap-2"><button onClick={handleSyncPotsClick} disabled={potSyncing} className="text-[11px] px-3 py-1.5 rounded-full bg-[#1a5a3a] text-white font-sans font-bold">{potSyncing?'Syncing...':'↻ Sync to Server'}</button><button onClick={()=>window.open('/pots','_blank')} className="text-[11px] px-3 py-1.5 rounded-full border bg-white font-sans">View Pots Page →</button></div></div>
+            <div className="bg-white rounded-[24px] border border-black/5 shadow-sm p-6"><div className="flex justify-between items-center"><h3 className="text-[11px] tracking-[0.15em] font-bold opacity-40 font-sans">POTS • {pots.length} POTS</h3>{potServerCount !== null && <span className="font-sans text-[11px] font-bold ml-2 px-2 py-0.5 rounded-full bg-[#E8F5EE] text-[#1a5a3a]">Server: {potServerCount} pots • sabko dikhenge</span>}<div className="flex gap-2"><button onClick={handleSyncPotsClick} disabled={potSyncing} className="text-[11px] px-3 py-1.5 rounded-full bg-[#1a5a3a] text-white font-sans font-bold">{potSyncing?'Syncing...':'↻ Sync to Server'}</button><button onClick={()=>window.open('/pots','_blank')} className="text-[11px] px-3 py-1.5 rounded-full border bg-white font-sans">View Pots Page →</button></div></div>
             <div className="mt-3"><input value={potSearch} onChange={e=>setPotSearch(e.target.value)} placeholder="Search pots…" className="w-full h-10 rounded-full border px-4 text-[12px]" /></div>
             <div className="mt-2 font-sans text-[11px] opacity-50">Showing {pots.filter(x=>(x.name||'').toLowerCase().includes(potSearch.toLowerCase())).length} of {pots.length} pots</div>
             <div className="mt-4 grid md:grid-cols-2 gap-3">{pots.filter(x=>(x.name||'').toLowerCase().includes(potSearch.toLowerCase())).map(x=>{ const isEditing = String(editingPotId)===String(x._id||x.id); const firstImg = (x.images && x.images[0]) || x.image || x.imageUrl || ''; return (<div key={x._id||x.id} className={'flex gap-3 p-3 rounded-[14px] border hover:shadow-md hover:-translate-y-0.5 transition ' + (isEditing ? 'bg-[#F0F7F0] border-[#1a5a3a] ring-1 ring-[#1a5a3a]' : 'bg-[#FAF8F5]')}><div className="w-14 h-14 rounded-[10px] overflow-hidden border shrink-0 bg-white">{firstImg ? <img src={firstImg} className="w-full h-full object-cover" alt=""/> : <div className="w-full h-full grid place-items-center opacity-20">🪴</div>}</div><div className="flex-1 min-w-0"><div className="font-serif text-[13px] font-bold truncate">{x.name} {isEditing && <span className="text-[10px] text-[#1a5a3a]">• EDITING</span>}</div><div className="text-[11px] opacity-60 font-sans">₹{x.price} • {x.category} • {(x.images||[]).length||1} photos • {(x.colours||[]).length||1} colours</div><div className="flex gap-1.5 mt-1 flex-wrap">{(x.colours||[]).slice(0,5).map((c,i)=>(<span key={i} className="w-4 h-4 rounded-full border inline-block" title={c.name} style={{background:c.hex}}></span>))}</div><div className="flex gap-2 mt-2"><button onClick={()=>handleEditPot(x)} className="h-7 px-3 rounded-full bg-[#1a5a3a] text-white text-[10px] font-bold">{isEditing ? 'Editing...' : 'Edit'}</button><button onClick={()=>handleDeletePot(x._id||x.id)} className="h-7 px-3 rounded-full bg-[#FEF2F2] text-red-600 text-[10px] font-bold">Delete</button></div></div></div>); })}</div></div>
