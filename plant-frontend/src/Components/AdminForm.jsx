@@ -81,7 +81,7 @@ export default function AdminForm() {
     setIsUnlocked(isAdmin);
   },[]);
 
-  useEffect(()=>{ if(isUnlocked){ fetchPlants(); fetchOrdersAndUsers(); } },[isUnlocked]);
+  useEffect(()=>{ if(isUnlocked){ fetchPlants(); fetchOrdersAndUsers(); const t = setInterval(()=>{ fetchOrdersAndUsers(); }, 4000); const p = setInterval(()=>{ (async()=>{ try{ const fresh = await fetchBackendPots(); if(fresh!==null && fresh.length>0){ const local = JSON.parse(localStorage.getItem('eco_admin_pots')||'[]'); savePots(mergePotsKeepLocal(fresh, local)); } }catch{} })(); }, 4000); return ()=>{ clearInterval(t); clearInterval(p); }; } },[isUnlocked]);
 
   const dedupe = (arr) => {
     const seen = new Map();
@@ -109,11 +109,23 @@ export default function AdminForm() {
     return clean;
   };
 
-  const fetchOrdersAndUsers = () => {
+  const fetchOrdersAndUsers = async () => {
+    // SERVER FIRST - dusre device ke orders/users bhi yahan dikhenge. Local sirf fallback hai.
+    let serverOrders = [];
+    let serverUsers = [];
+    try{
+      const [oRes, uRes] = await Promise.all([
+        fetch(`${API_URL}/api/orders`).catch(()=>null),
+        fetch(`${API_URL}/api/users`).catch(()=>null),
+      ]);
+      if (oRes && oRes.ok) { const d = await oRes.json().catch(()=>[]); serverOrders = Array.isArray(d) ? d : (d.orders || []); }
+      if (uRes && uRes.ok) { const d = await uRes.json().catch(()=>[]); serverUsers = Array.isArray(d) ? d : (d.users || []); }
+    }catch{}
     try{
       const storedOrders = JSON.parse(localStorage.getItem('eco_orders')||'[]');
       const storedOrders2 = JSON.parse(localStorage.getItem('orders')||'[]');
-      const allOrders = [...storedOrders, ...storedOrders2].filter((v,i,a)=>a.findIndex(t=>(t.id||t._id)===(v.id||v._id))===i);
+      // Server wala order pehle - same id ho to server jeetega, duplicate nahi banega.
+      const allOrders = [...serverOrders, ...storedOrders, ...storedOrders2].filter((v,i,a)=>a.findIndex(t=>(t.id||t._id)===(v.id||v._id))===i);
       // The same order can sit in 2 keys with different ids - never print an order with the
       // exact same email + total + timestamp + items twice (same customer name twice).
       {
@@ -175,6 +187,32 @@ export default function AdminForm() {
           if(s.loginAt) u.loginAt = s.loginAt;
           if(s.logoutAt) u.logoutAt = s.logoutAt;
           u.status = s.logoutAt ? 'Logged Out' : 'Active';
+        }
+      });
+
+      // SERVER USERS - dusre device pe login/purchase karne wale customers. Admin yahan nahi (wo alag card me hai).
+      serverUsers.forEach(su=>{
+        if(!su || su.role==='admin') return;
+        const email = (su.email||'').toLowerCase().trim();
+        const name = (su.name||'').trim();
+        if(!email && !name) return;
+        if(name.toUpperCase()==='USER' || name.toUpperCase()==='U USER') return;
+        let key = email;
+        if(!key){
+          const byName = Array.from(allUsersMap.values()).find(u => (u.name||'').toLowerCase().trim() === name.toLowerCase());
+          key = byName ? byName.id : ('name:' + name.toLowerCase());
+        }
+        if(!allUsersMap.has(key)){
+          allUsersMap.set(key, {
+            id: key, name: name||'User', email: email, phone: su.phone||'',
+            totalOrders: 0, totalSpent: 0, lastOrderDate: null, orders: [],
+            loginAt: su.lastLoginAt || su.loginAt || su.createdAt || new Date().toISOString(), logoutAt: null, status: 'Active'
+          });
+        } else {
+          const u = allUsersMap.get(key);
+          if(!u.phone && su.phone) u.phone = su.phone;
+          const la = su.lastLoginAt || su.loginAt;
+          if(la) u.loginAt = la;
         }
       });
 
@@ -769,6 +807,8 @@ export default function AdminForm() {
   const updateOrderStatus = (orderId, newStatus) => {
     const updated = orders.map(o=> o.id===orderId || o._id===orderId ? {...o, status:newStatus} : o);
     setOrders(updated); localStorage.setItem('eco_orders', JSON.stringify(updated));
+    // Server pe bhi status badlo - taaki buyer / dusre device ko bhi dikhe.
+    try{ fetch(`${API_URL}/api/orders/${orderId}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status: newStatus }) }).catch(()=>{}); }catch{}
   };
 
   const totalRevenue = orders.reduce((sum,o)=> sum + Number(o.total||0), 0);
@@ -1081,7 +1121,7 @@ export default function AdminForm() {
               </div>
               {potMsg&&<div className="mt-3 p-3 rounded-[12px] bg-[#F0F7F0] text-[11px] text-center">{potMsg}</div>}
             </div>
-            <div className="bg-white rounded-[24px] border border-black/5 shadow-sm p-6"><div className="flex justify-between items-center"><h3 className="text-[11px] tracking-[0.15em] font-bold opacity-40 font-sans">POTS • {pots.length} POTS</h3>{potServerCount !== null && <span className="font-sans text-[11px] font-bold ml-2 px-2 py-0.5 rounded-full bg-[#E8F5EE] text-[#1a5a3a]">Server: {potServerCount} pots • sabko dikhenge</span>}<div className="flex gap-2"><button onClick={handleSyncPotsClick} disabled={potSyncing} className="text-[11px] px-3 py-1.5 rounded-full bg-[#1a5a3a] text-white font-sans font-bold">{potSyncing?'Syncing...':'↻ Sync to Server'}</button><button onClick={()=>window.open('/pots','_blank')} className="text-[11px] px-3 py-1.5 rounded-full border bg-white font-sans">View Pots Page →</button></div></div>
+            <div className="bg-white rounded-[24px] border border-black/5 shadow-sm p-6"><div className="flex justify-between items-center"><h3 className="text-[11px] tracking-[0.15em] font-bold opacity-40 font-sans">POTS • {pots.length} POTS • v6</h3>{potServerCount !== null && <span className="font-sans text-[11px] font-bold ml-2 px-2 py-0.5 rounded-full bg-[#E8F5EE] text-[#1a5a3a]">Server: {potServerCount} pots • sabko dikhenge</span>}<div className="flex gap-2"><button onClick={handleSyncPotsClick} disabled={potSyncing} className="text-[11px] px-3 py-1.5 rounded-full bg-[#1a5a3a] text-white font-sans font-bold">{potSyncing?'Syncing...':'↻ Sync to Server'}</button><button onClick={()=>window.open('/pots','_blank')} className="text-[11px] px-3 py-1.5 rounded-full border bg-white font-sans">View Pots Page →</button></div></div>
             <div className="mt-3"><input value={potSearch} onChange={e=>setPotSearch(e.target.value)} placeholder="Search pots…" className="w-full h-10 rounded-full border px-4 text-[12px]" /></div>
             <div className="mt-2 font-sans text-[11px] opacity-50">Showing {pots.filter(x=>(x.name||'').toLowerCase().includes(potSearch.toLowerCase())).length} of {pots.length} pots</div>
             <div className="mt-4 grid md:grid-cols-2 gap-3">{pots.filter(x=>(x.name||'').toLowerCase().includes(potSearch.toLowerCase())).map(x=>{ const isEditing = String(editingPotId)===String(x._id||x.id); const firstImg = (x.images && x.images[0]) || x.image || x.imageUrl || ''; return (<div key={x._id||x.id} className={'flex gap-3 p-3 rounded-[14px] border hover:shadow-md hover:-translate-y-0.5 transition ' + (isEditing ? 'bg-[#F0F7F0] border-[#1a5a3a] ring-1 ring-[#1a5a3a]' : 'bg-[#FAF8F5]')}><div className="w-14 h-14 rounded-[10px] overflow-hidden border shrink-0 bg-white">{firstImg ? <img src={firstImg} className="w-full h-full object-cover" alt=""/> : <div className="w-full h-full grid place-items-center opacity-20">🪴</div>}</div><div className="flex-1 min-w-0"><div className="font-serif text-[13px] font-bold truncate">{x.name} {isEditing && <span className="text-[10px] text-[#1a5a3a]">• EDITING</span>}</div><div className="text-[11px] opacity-60 font-sans">₹{x.price} • {x.category} • {(x.images||[]).length||1} photos • {(x.colours||[]).length||1} colours</div><div className="flex gap-1.5 mt-1 flex-wrap">{(x.colours||[]).slice(0,5).map((c,i)=>(<span key={i} className="w-4 h-4 rounded-full border inline-block" title={c.name} style={{background:c.hex}}></span>))}</div><div className="flex gap-2 mt-2"><button onClick={()=>handleEditPot(x)} className="h-7 px-3 rounded-full bg-[#1a5a3a] text-white text-[10px] font-bold">{isEditing ? 'Editing...' : 'Edit'}</button><button onClick={()=>handleDeletePot(x._id||x.id)} className="h-7 px-3 rounded-full bg-[#FEF2F2] text-red-600 text-[10px] font-bold">Delete</button></div></div></div>); })}</div></div>
