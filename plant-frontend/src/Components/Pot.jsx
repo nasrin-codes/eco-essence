@@ -74,28 +74,32 @@ export default function Pot() {
         };
     const loadAdminPots = async () => {
       try {
-        // 1) BACKEND - source of truth. Whatever Admin saved from anywhere shows up here.
+        // MERGE - backend + is browser ke local pots, naam se dedupe (backend wala jeetta hai).
+        // Pehle wala code backend milte hi local ko mita deta tha - isliye TEST POT gayab ho jata tha.
+        // Ab TEST POT backend me na bhi ho, tab bhi POTS page pe dikhega.
+        let backend = [];
         try {
           const res = await fetch(`${API_URL}/api/pots`);
           if (res.ok) {
             const data = await res.json();
             const arr = Array.isArray(data) ? data : (data.pots || []);
-            if (arr.length > 0) { applyPots(arr); try { localStorage.setItem('eco_admin_pots', JSON.stringify(arr)); } catch {} return; }
+            if (Array.isArray(arr)) backend = arr;
           }
-        } catch (e) { /* backend offline - fall back to cache */ }
-        // 2) CACHE - last saved pots in this browser
+        } catch (e) { /* backend offline - local hi dikhega */ }
+        let local = [];
         const keys = ['eco_admin_pots', 'eco_my_pots', 'admin-pots', 'eco_shop_pots'];
-        let best = [];
         for (const k of keys) {
           try {
             const raw = localStorage.getItem(k);
             if (!raw) continue;
             const a = JSON.parse(raw);
-            if (Array.isArray(a) && a.length > 0) { best = a; break; }
+            if (Array.isArray(a) && a.length > 0) { local = a; break; }
           } catch (e) { /* ignore bad json */ }
         }
-        if (best.length > 0) { applyPots(best); return; }
-        // 3) FALLBACK - if backend + cache are both empty, the default pots in useState stay
+        const names = new Set(backend.map(p => String(p.name || p.title || '').toLowerCase().trim()));
+        const merged = [...backend, ...local.filter(p => p && (p.name || p.title) && !names.has(String(p.name || p.title).toLowerCase().trim()))];
+        if (merged.length > 0) { applyPots(merged); return; }
+        // 3) FALLBACK - backend + cache dono khaali, default pots in useState rehte hain
 
       } catch (e) { /* keep fallback */ }
     };
@@ -177,12 +181,14 @@ export default function Pot() {
           const colours = getColours(selected);
           const colour = colours[detailColour] || colours[0];
           const imgs = getImages(selected);
-          const mainImg = (detailImg === 0 && colour && colour.image) ? colour.image : (imgs[detailImg] || imgs[0] || (colour && colour.image) || '');
+          // Thumbnails = main photos + har colour ki photo (duplicate hatake) - warna colour photos kabhi dikhti hi nahi.
+          const allImgs = [...imgs, ...colours.map(c => c.image).filter(Boolean).filter(im => !imgs.includes(im))];
+          const mainImg = allImgs[detailImg] || allImgs[0] || (colour && colour.image) || '';
           const finalPrice = Number(selected.price || 0) + sizeExtra + Number((colour && colour.extra) || 0);
           return (
             <div className="mt-8 bg-white rounded-[28px] border p-6 grid md:grid-cols-[110px_1fr_1fr] gap-6">
               <div className="flex md:flex-col gap-2 overflow-auto">
-                {imgs.map((im, i) => (
+                {allImgs.map((im, i) => (
                   <button key={i} onClick={() => { setDetailImg(i); }} className={'w-[80px] h-[80px] rounded-[12px] overflow-hidden border-2 shrink-0 ' + (detailImg === i ? 'border-black' : 'border-transparent')}>
                     <img src={im} className="w-full h-full object-cover" alt="" />
                   </button>
@@ -197,7 +203,7 @@ export default function Pot() {
                 <p className="font-sans text-[13px] text-black/50 mt-2 leading-6">{selected.desc} • Drainage hole included • Hand-finished</p>
                 <div className="font-sans text-[11px] font-bold tracking-widest text-black/60 mt-5">COLOUR — {colour && colour.name}</div>
                 <div className="flex gap-2 mt-2">{colours.map((c, i) => (
-                  <button key={i} title={c.name} onClick={() => setDetailColour(i)} className={'w-8 h-8 rounded-full border-2 ' + (detailColour === i ? 'border-black scale-110' : 'border-black/10')} style={{ background: c.hex }} />
+                  <button key={i} title={c.name} onClick={() => { setDetailColour(i); if (c.image) { const idx = allImgs.indexOf(c.image); if (idx >= 0) setDetailImg(idx); } }} className={'w-8 h-8 rounded-full border-2 ' + (detailColour === i ? 'border-black scale-110' : 'border-black/10')} style={{ background: c.hex }} />
                 ))}</div>
                 <div className="font-sans text-[11px] font-bold tracking-widest text-black/60 mt-4">TYPE</div>
                 <div className="flex gap-2 mt-2">
