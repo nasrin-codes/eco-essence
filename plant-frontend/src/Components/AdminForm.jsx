@@ -445,23 +445,39 @@ export default function AdminForm() {
     if (isObjectId(_id)) { clean._id = _id; clean.id = _id; }
     return clean;
   };
-  // POST with auto-retry: pehle full payload, fail ho to halka payload (1 photo, colour photo nahi).
-  // Badi photo (413) ya kharab field se bhi save nahi rukega.
+  // POST with auto-retry: 3 tareekon se try karo - backend jo bhi maange, ek to chalega.
+  // 1) Full photo + login token, 2) Full photo bina token (kuch backend token pe preflight rok dete hain),
+  // 3) Halki photo (1 photo, colour photo nahi) bina token - badi photo (413) se bhi save nahi rukega.
+  // Jo bhi backend bolega (404 / 401 / 500 / uska error text), wo wapas bhejo taaki message me saaf dikhe.
   const postPotToBackend = async (pot) => {
     const clean = cleanPotForServer(pot);
+    const light = { ...clean, images: (clean.images || []).slice(0, 1), image: (clean.images || [])[0] || clean.image || '', imageUrl: (clean.images || [])[0] || clean.image || '', colours: (clean.colours || []).map(c => ({ name: c.name, hex: c.hex, extra: c.extra, image: '' })) };
     const tries = [
-      clean,
-      { ...clean, images: (clean.images || []).slice(0, 1), image: (clean.images || [])[0] || clean.image || '', imageUrl: (clean.images || [])[0] || clean.image || '', colours: (clean.colours || []).map(c => ({ name: c.name, hex: c.hex, extra: c.extra, image: '' })) },
+      { body: clean, headers: { 'Content-Type': 'application/json', ...authHeaders() } },
+      { body: clean, headers: { 'Content-Type': 'application/json' } },
+      { body: light, headers: { 'Content-Type': 'application/json' } },
     ];
     let lastStatus = '';
-    for (const body of tries) {
+    let lastError = '';
+    for (const t of tries) {
       try {
-        const res = await fetch(`${API_URL}/api/pots`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(body) });
+        const res = await fetch(`${API_URL}/api/pots`, { method: 'POST', headers: t.headers, body: JSON.stringify(t.body) });
         lastStatus = String(res.status);
-        if (res.ok) return { ok: true, status: lastStatus };
-      } catch { lastStatus = 'no reply'; }
+        if (res.ok) return { ok: true, status: lastStatus, error: '' };
+        try { lastError = (await res.text()).slice(0, 140); } catch {}
+      } catch { lastStatus = 'no reply'; lastError = ''; }
     }
-    return { ok: false, status: lastStatus };
+    return { ok: false, status: lastStatus, error: lastError };
+  };
+  // Backend ke status number ko saaf Hindi me samjhao - user ko number yaad rakhne ki zaroorat nahi.
+  const backendHint = (status, error) => {
+    if (status === '404' || /cannot post/i.test(error || '')) return 'Backend me POST route nahi mila';
+    if (status === '401' || status === '403') return 'Backend login maang raha hai';
+    if (status === '413') return 'Photo bahut badi hai';
+    if (status === '400' || /valid/i.test(error || '')) return 'Backend ko koi field pasand nahi aaya';
+    if (status === '500') return 'Backend ke andar error';
+    if (status === 'no reply') return 'Backend se jawab hi nahi aaya (server so raha hai / CORS)';
+    return error ? error : ('Backend said ' + status);
   };
   // Local pots jo backend me nahi hain (naam se match) - unhe backend pe bhejo. Duplicate kabhi nahi banega.
   const syncMissingPotsToBackend = async () => {
@@ -552,17 +568,20 @@ export default function AdminForm() {
     };
     let backendOk = false;
     let backendStatus = '';
+    let backendError = '';
     try{
       if (editingPotId && isObjectId(editingPotId)) {
         // Asli backend pot ka EDIT - PUT, uske sahi ObjectId pe.
         const res = await fetch(`${API_URL}/api/pots/${editingPotId}`, { method:'PUT', headers:{'Content-Type':'application/json', ...authHeaders()}, body: JSON.stringify(payload) });
         backendOk = res.ok;
         backendStatus = String(res.status);
+        if (!res.ok) { try { backendError = (await res.text()).slice(0, 140); } catch {} }
       } else {
-        // Naya pot, ya local-only pot ka edit - POST with auto-retry (full photo -> halki photo).
+        // Naya pot, ya local-only pot ka edit - POST with auto-retry (3 tareeke).
         const r = await postPotToBackend(payload);
         backendOk = r.ok;
         backendStatus = r.status;
+        backendError = r.error || '';
       }
       if(backendOk){
         // Re-fetch the fresh list from the backend - it also carries the Mongo _id
@@ -576,7 +595,7 @@ export default function AdminForm() {
     if(editingPotId){ arr = arr.map(x=> (String(x._id)===String(editingPotId)||String(x.id)===String(editingPotId)) ? {...x, ...payload, _id: x._id||x.id, id: x.id||x._id} : x); }
     else { const lid = 'local-' + Date.now().toString(); arr.push({ ...payload, _id: lid, id: lid }); }
     savePots(arr);
-    setPotMsg(`${editingPotId ? 'Updated' : 'Added'} ${payload.name} • Saved here • Backend said ${backendStatus || 'no reply'} - Admin dobara khologe to auto-sync ho jayega`);
+    setPotMsg(`${editingPotId ? 'Updated' : 'Added'} ${payload.name} • Saved here • ${backendHint(backendStatus, backendError)} (${backendStatus || 'no reply'}) - Admin dobara khologe to auto-sync ho jayega`);
     cancelEditPot(); setPotLoading(false);
   };
 
