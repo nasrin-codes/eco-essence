@@ -97,7 +97,9 @@ export default function Pot() {
           } catch (e) { /* ignore bad json */ }
         }
         const names = new Set(backend.map(p => String(p.name || p.title || '').toLowerCase().trim()));
-        const merged = [...backend, ...local.filter(p => p && (p.name || p.title) && !names.has(String(p.name || p.title).toLowerCase().trim()))];
+        const backendIds = new Set(backend.map(p => String(p._id || p.id || '')));
+        // Local pot jiska _id backend me hai = wahi pot (rename hua hoga) - backend wala rakho, duplicate nahi.
+        const merged = [...backend, ...local.filter(p => p && (p.name || p.title) && !names.has(String(p.name || p.title).toLowerCase().trim()) && !backendIds.has(String(p._id || p.id || '')))];
         if (merged.length > 0) { applyPots(merged); return; }
         // 3) FALLBACK - backend + cache dono khaali, default pots in useState rehte hain
 
