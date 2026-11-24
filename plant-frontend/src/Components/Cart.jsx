@@ -1,4 +1,4 @@
-import Bill from "./Bill";
+import Bill from "./BillNew";
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -28,8 +28,6 @@ export default function Cart() {
     { id: 'cod', label: 'Cash on Delivery', sub: 'Pay when order arrives', icon: '💵', color: '#B97A0A' },
   ];
   const payLabel = (PAY_METHODS.find(m=>m.id===payMethod)||{}).label || '';
-  const upiPayLink = `upi://pay?pa=${MERCHANT_UPI_ID}&pn=${encodeURIComponent(MERCHANT_NAME)}&am=${total}&cu=INR&tn=${encodeURIComponent('Eco-Essence Order')}`;
-  const upiQrImg = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=12&color=0F2A1D&bgcolor=FFFFFF&data=${encodeURIComponent(upiPayLink)}`;
 
   // ===== ORDER MESSAGE - jo number delivery me diya, usi pe jayega (WhatsApp / SMS) =====
   const orderMsgText = (o) => `Hello ${o.customerName}! Your Eco-Essence order is confirmed.\n\nOrder ID: ${o.id}\nItems: ${o.items.map(i=>`${i.name} x ${i.qty||i.quantity||1}`).join(', ')}\nTotal: ₹${o.total} (${o.payment.methodLabel})\nDelivery: ${o.address.full}\n\nThank you for shopping with Eco-Essence!`;
@@ -105,6 +103,9 @@ export default function Cart() {
   const subtotal = cart.reduce((s, i) => s + (i.total || i.price || 0) * qtyOf(i), 0);
   const deliveryFee = subtotal > 0 ? 49 : 0;
   const total = subtotal + deliveryFee;
+  // UPI link - total ke BAAD hi bane, warna blank page (TDZ crash) aata tha
+  const upiPayLink = `upi://pay?pa=${MERCHANT_UPI_ID}&pn=${encodeURIComponent(MERCHANT_NAME)}&am=${total}&cu=INR&tn=${encodeURIComponent('Eco-Essence Order')}`;
+  const upiQrImg = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=12&color=0F2A1D&bgcolor=FFFFFF&data=${encodeURIComponent(upiPayLink)}`;
   // BUY button ka label - total ke BAAD, warna 'Cannot access total before initialization' aayega
   const buyBtnLabel = !payMethod ? `BUY NOW — ₹${total}` : payMethod==='cod' ? `PLACE ORDER — ₹${total} (Pay on Delivery)` : `PAY ₹${total} VIA ${payLabel.toUpperCase()}`;
 
