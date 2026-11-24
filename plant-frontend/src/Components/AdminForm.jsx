@@ -469,17 +469,22 @@ export default function AdminForm() {
     if (isObjectId(_id)) { clean._id = _id; clean.id = _id; }
     return clean;
   };
-  // POST with auto-retry: 3 tareekon se try karo - backend jo bhi maange, ek to chalega.
+  // POST with auto-retry: 4 tareekon se try karo - backend jo bhi maange, ek to chalega.
   // 1) Full photo + login token, 2) Full photo bina token (kuch backend token pe preflight rok dete hain),
-  // 3) Halki photo (1 photo, colour photo nahi) bina token - badi photo (413) se bhi save nahi rukega.
+  // 3) Halki photo (1 photo, colour photo BILKUL NAHI) bina token, 4) Bina photo ke sirf text - tab bhi pot server pe pahunchega.
   // Jo bhi backend bolega (404 / 401 / 500 / uska error text), wo wapas bhejo taaki message me saaf dikhe.
   const postPotToBackend = async (pot) => {
     const clean = cleanPotForServer(pot);
-    const light = { ...clean, images: (clean.images || []).slice(0, 1), image: (clean.images || [])[0] || clean.image || '', imageUrl: (clean.images || [])[0] || clean.image || '', colours: (clean.colours || []).map(c => ({ name: c.name, hex: c.hex, extra: c.extra, image: c.image || '' })) };
+    // LIGHT = 1 photo, colour photos HATAO - pehle colour photos light me bhi rehti thi, isliye 413 pe teeno try fail hote the.
+    const noColourImgs = (clean.colours || []).map(c => ({ name: c.name, hex: c.hex, extra: c.extra, image: '' }));
+    const light = { ...clean, images: (clean.images || []).slice(0, 1), image: (clean.images || [])[0] || clean.image || '', imageUrl: (clean.images || [])[0] || clean.image || '', colours: noColourImgs };
+    // ULTRA = koi photo nahi, sirf text - backend ki photo-limit kuch bhi ho, pot server pe pahunchega hi.
+    const ultra = { ...clean, images: [], image: '', imageUrl: '', colours: noColourImgs };
     const tries = [
       { body: clean, headers: { 'Content-Type': 'application/json', ...authHeaders() } },
       { body: clean, headers: { 'Content-Type': 'application/json' } },
       { body: light, headers: { 'Content-Type': 'application/json' } },
+      { body: ultra, headers: { 'Content-Type': 'application/json' } },
     ];
     let lastStatus = '';
     let lastError = '';
@@ -493,15 +498,18 @@ export default function AdminForm() {
     }
     return { ok: false, status: lastStatus, error: lastError };
   };
-  // PUT with auto-retry: edit bhi POST jaisa - 3 tareekon se try, ek to chalega.
+  // PUT with auto-retry: edit bhi POST jaisa - 4 tareekon se try, ek to chalega.
   const putPotToBackend = async (id, pot) => {
     const { _id, id: _drop, ...body } = pot || {};
     const clean = { ...body };
-    const light = { ...clean, images: (clean.images || []).slice(0, 1), image: (clean.images || [])[0] || clean.image || '', imageUrl: (clean.images || [])[0] || clean.image || '', colours: (clean.colours || []).map(c => ({ name: c.name, hex: c.hex, extra: c.extra, image: c.image || '' })) };
+    const noColourImgs = (clean.colours || []).map(c => ({ name: c.name, hex: c.hex, extra: c.extra, image: '' }));
+    const light = { ...clean, images: (clean.images || []).slice(0, 1), image: (clean.images || [])[0] || clean.image || '', imageUrl: (clean.images || [])[0] || clean.image || '', colours: noColourImgs };
+    const ultra = { ...clean, images: [], image: '', imageUrl: '', colours: noColourImgs };
     const tries = [
       { body: clean, headers: { 'Content-Type': 'application/json', ...authHeaders() } },
       { body: clean, headers: { 'Content-Type': 'application/json' } },
       { body: light, headers: { 'Content-Type': 'application/json' } },
+      { body: ultra, headers: { 'Content-Type': 'application/json' } },
     ];
     let lastStatus = '', lastError = '';
     for (const t of tries) {
@@ -547,15 +555,18 @@ export default function AdminForm() {
     const missing = local.filter(p => p && p.name && !backendNames.has(String(p.name).toLowerCase().trim()));
     const backendById = new Map(backend.map(p => [String(p._id || p.id), p]));
     let synced = 0;
+    let failed = [];
     // 1) Naye pots jo backend me nahi - POST.
-    for (const p of missing) { const r = await postPotToBackend(p); if (r.ok) synced++; }
+    for (const p of missing) { const r = await postPotToBackend(p); if (r.ok) synced++; else failed.push(`${p.name}: ${backendHint(r.status, r.error)}`); }
     // 2) Rename/edit hue pots - backend me purana naam atka hai, wahi _id pe PUT karke theek karo.
     for (const p of local) {
       const bid = String(p._id || p.id || '');
       if (!isObjectId(bid)) continue;
       const b = backendById.get(bid);
       if (!b) continue;
-      if (String(b.name || '').trim() !== String(p.name || '').trim() || Number(b.price) !== Number(p.price)) {
+      const backendHasNoPhoto = !(b.images && b.images.length) && !b.image && !b.imageUrl;
+      const localHasPhoto = (p.images && p.images.length > 0) || !!p.image;
+      if (String(b.name || '').trim() !== String(p.name || '').trim() || Number(b.price) !== Number(p.price) || (backendHasNoPhoto && localHasPhoto)) {
         const r = await putPotToBackend(bid, p);
         if (r.ok) synced++;
       }
@@ -578,13 +589,14 @@ export default function AdminForm() {
     if (fresh !== null) setPotServerCount(fresh.length); // sach saamne - server pe kitne hain
     // OVERWRITE NAHI - MERGE. Backend pe na pahuncha pot local me zinda rahega aur dobara try hoga.
     if (fresh !== null && fresh.length > 0) savePots(mergePotsKeepLocal(fresh, local));
-    return { ok: true, synced, reason: '' };
+    return { ok: true, synced, reason: '', failed };
   };
   const handleSyncPotsClick = async () => {
     setPotSyncing(true);
     const r = await syncMissingPotsToBackend();
     setPotSyncing(false);
     if (!r.ok) setPotMsg('⚠ Backend abhi offline hai • Tumhare pots isi browser me safe hain • Admin dobara khologe to auto-sync ho jayenge');
+    else if (r.failed && r.failed.length > 0) setPotMsg(`⚠ ${r.failed.length} pot server pe nahi gaya: ${r.failed.join(' • ')}${r.synced > 0 ? ` • ${r.synced} gaya` : ''}`);
     else if (r.synced > 0) setPotMsg(`✅ ${r.synced} pot server pe sync ho gaya • Ab sabko dikhega`);
     else setPotMsg('✅ Sab pots pehle se server pe hain • Kuch sync karna baaki nahi');
   };
