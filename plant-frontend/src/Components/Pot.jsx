@@ -117,7 +117,7 @@ export default function Pot() {
     // LIVE / DYNAMIC - har 15 second me server se naye pots khud poochho.
     // Admin kisi bhi device se pot add/edit/delete kare, is page pe khula har device apne aap update ho jayega - refresh dabane ki zaroorat nahi.
     // (Tab chhupa ho to poochna band - battery/data bachega, tab khulte hi turant update hoga.)
-    const liveTimer = setInterval(() => { if (!document.hidden) loadAdminPots(); }, 15000);
+    const liveTimer = setInterval(() => { if (!document.hidden) loadAdminPots(); }, 3000);
     const onVisible = () => { if (!document.hidden) loadAdminPots(); };
     document.addEventListener('visibilitychange', onVisible);
     return () => { window.removeEventListener('eco-pots-updated', onUpdate); window.removeEventListener('storage', onUpdate); window.removeEventListener('focus', onUpdate); clearInterval(liveTimer); document.removeEventListener('visibilitychange', onVisible); };
@@ -198,7 +198,7 @@ export default function Pot() {
           const mainImg = allImgs[detailImg] || allImgs[0] || (colour && colour.image) || '';
           const finalPrice = Number(selected.price || 0) + sizeExtra + Number((colour && colour.extra) || 0);
           return (
-            <div className="mt-8 bg-white rounded-[28px] border p-6 grid md:grid-cols-[110px_1fr_1fr] gap-6">
+            <div className="mt-8 bg-white rounded-[28px] border p-4 md:p-6 grid md:grid-cols-[110px_1fr_1fr] gap-4 md:gap-6">
               <div className="flex md:flex-col gap-2 overflow-auto">
                 {allImgs.map((im, i) => (
                   <button key={i} onClick={() => { setDetailImg(i); }} className={'w-[80px] h-[80px] rounded-[12px] overflow-hidden border-2 shrink-0 ' + (detailImg === i ? 'border-black' : 'border-transparent')}>
@@ -207,7 +207,7 @@ export default function Pot() {
                 ))}
               </div>
               <div className="rounded-[20px] bg-[#FAF8F5] overflow-hidden min-h-[320px] grid place-items-center">
-                {mainImg ? <img src={mainImg} className="w-full h-[380px] object-contain" alt={selected.name} /> : <div className="w-[130px] h-[150px] rounded-b-[40px] rounded-t-[10px]" style={{ background: (colour && colour.hex) || selected.color }} />}
+                {mainImg ? <img src={mainImg} className="w-full h-[300px] md:h-[380px] object-contain" alt={selected.name} /> : <div className="w-[130px] h-[150px] rounded-b-[40px] rounded-t-[10px]" style={{ background: (colour && colour.hex) || selected.color }} />}
               </div>
               <div>
                 <div className="font-sans text-[11px] tracking-[0.15em] text-black/40">{String(selected.category || selected.name || '').toUpperCase()}</div>
