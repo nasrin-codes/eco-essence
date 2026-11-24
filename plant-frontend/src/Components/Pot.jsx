@@ -114,7 +114,13 @@ export default function Pot() {
     window.addEventListener('eco-pots-updated', onUpdate);
     window.addEventListener('storage', onUpdate);
     window.addEventListener('focus', onUpdate);
-    return () => { window.removeEventListener('eco-pots-updated', onUpdate); window.removeEventListener('storage', onUpdate); window.removeEventListener('focus', onUpdate); };
+    // LIVE / DYNAMIC - har 15 second me server se naye pots khud poochho.
+    // Admin kisi bhi device se pot add/edit/delete kare, is page pe khula har device apne aap update ho jayega - refresh dabane ki zaroorat nahi.
+    // (Tab chhupa ho to poochna band - battery/data bachega, tab khulte hi turant update hoga.)
+    const liveTimer = setInterval(() => { if (!document.hidden) loadAdminPots(); }, 15000);
+    const onVisible = () => { if (!document.hidden) loadAdminPots(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { window.removeEventListener('eco-pots-updated', onUpdate); window.removeEventListener('storage', onUpdate); window.removeEventListener('focus', onUpdate); clearInterval(liveTimer); document.removeEventListener('visibilitychange', onVisible); };
   }, []);
 
   // Filter match: lowercase + trim extra spaces, and also match the first word of the category
