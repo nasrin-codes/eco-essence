@@ -1,29 +1,50 @@
-// routes/users.js
+// routes/users.js - Eco-Essence USERS API (self-contained: apna SiteUser model, auth ke User model se koi lena-dena nahi)
+// Mount in app.js:
+//   import usersRoute from './routes/users.js';
+//   app.use('/api/users', usersRoute);
 import express from 'express';
-import { User } from '../models/User.js'; // Adjust path/casing if necessary
+import mongoose from 'mongoose';
 
 const router = express.Router();
 
-//  GET: Fetch all users (excluding their hashed passwords for security) //
+const SiteUserSchema = new mongoose.Schema({
+  name: String,
+  email: { type: String, index: true },
+  phone: String,
+  role: { type: String, default: 'user' },
+  loginAt: String,
+  lastLoginAt: String,
+  totalLogins: { type: Number, default: 0 },
+}, { timestamps: true, strict: false });
+
+const SiteUser = mongoose.models.SiteUser || mongoose.model('SiteUser', SiteUserSchema);
+
+// GET /api/users - saare customers (admin ko frontend filter karta hai)
 router.get('/', async (req, res) => {
   try {
-    const users = await User.find().select('-password');
+    const users = await SiteUser.find({}).sort({ updatedAt: -1 }).lean();
     res.json(users);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
+  } catch (e) { res.status(500).json({ message: e.message }); }
 });
 
-//  GET: Fetch a single user profile by ID--------//
-
-router.get('/:id', async (req, res) => {
+// POST /api/users/upsert - login/register pe customer darj karo. Same email dobara aaye to update (duplicate nahi banega).
+router.post('/upsert', async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).select('-password');
-    if (!user) return res.status(404).json({ message: 'User not found' });
-    res.json(user);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
+    const { name, email, phone, role } = req.body || {};
+    const cleanEmail = String(email || '').toLowerCase().trim();
+    if (!cleanEmail) return res.status(400).json({ message: 'email required' });
+    const now = new Date().toISOString();
+    const updated = await SiteUser.findOneAndUpdate(
+      { email: cleanEmail },
+      {
+        $set: { name: name || '', phone: phone || '', role: role || 'user', lastLoginAt: now },
+        $setOnInsert: { loginAt: now, totalLogins: 0 },
+        $inc: { totalLogins: 1 },
+      },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    ).lean();
+    res.json(updated);
+  } catch (e) { res.status(500).json({ message: e.message }); }
 });
 
 export default router;
