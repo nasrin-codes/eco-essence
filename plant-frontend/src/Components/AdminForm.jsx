@@ -489,7 +489,8 @@ export default function AdminForm() {
       // Server wala pot photo ke bina aaya (ULTRA) aur local me uski photo hai - photo wapas bhar do, warna Admin se bhi photo mit jayegi.
       const lp = localById.get(String(p._id || p.id || '')) || localByName.get(String(p.name || '').toLowerCase().trim());
       let merged = p;
-      if (lp && !potHasPhoto(p) && potHasPhoto(lp)) {
+      // Local me backend se ZYADA photos hain (nayi add ki thi, backend ne 1-photo save kar li) - local wali photos wapas bhar do, warna thumbnail gayab.
+      if (lp && potHasPhoto(lp) && (!potHasPhoto(p) || (lp.images || []).filter(Boolean).length > (p.images || []).filter(Boolean).length)) {
         merged = { ...p, images: lp.images, image: lp.image || (lp.images || [])[0] || '', imageUrl: lp.imageUrl || lp.image || (lp.images || [])[0] || '', colours: lp.colours || p.colours };
       } else if (lp && lp.colours && p.colours) {
         const filled = p.colours.map(c => {
@@ -554,20 +555,11 @@ export default function AdminForm() {
   // Jo bhi backend bolega (404 / 401 / 500 / uska error text), wo wapas bhejo taaki message me saaf dikhe.
   const postPotToBackend = async (pot) => {
     const clean = cleanPotForServer(pot);
-    // LIGHT = 1 photo, colour photos HATAO - pehle colour photos light me bhi rehti thi, isliye 413 pe teeno try fail hote the.
-    const noColourImgs = (clean.colours || []).map(c => ({ name: c.name, hex: c.hex, extra: c.extra, image: '' }));
-    const light = { ...clean, images: (clean.images || []).slice(0, 1), image: (clean.images || [])[0] || clean.image || '', imageUrl: (clean.images || [])[0] || clean.image || '', colours: noColourImgs };
-    // ULTRA = koi photo nahi, sirf text - backend ki photo-limit kuch bhi ho, pot server pe pahunchega hi.
-    const ultra = { ...clean, images: [], image: '', imageUrl: '', colours: noColourImgs };
-    // TINY = 1 photo ko 500px tak chhota karke - backend ki 100kb limit ho to bhi photo pahunch jaye.
-    const tinyPhoto = await shrinkPhoto((clean.images || [])[0] || clean.image || '');
-    const tiny = { ...clean, images: tinyPhoto ? [tinyPhoto] : [], image: tinyPhoto, imageUrl: tinyPhoto, colours: noColourImgs };
+    // SIRF full payload - light/tiny/ultra fallback HATA DIYA: wo 413 pe chupke se 1 photo save kar dete the, isliye thumbnails gayab hote the.
+    // Backend ka limit ab 10mb hai, isliye poori photos jayengi. Fail hua to local me safe rahega, 1-photo save kabhi nahi hoga.
     const tries = [
       { body: clean, headers: { 'Content-Type': 'application/json', ...authHeaders() } },
       { body: clean, headers: { 'Content-Type': 'application/json' } },
-      { body: light, headers: { 'Content-Type': 'application/json' } },
-      { body: tiny, headers: { 'Content-Type': 'application/json' } },
-      { body: ultra, headers: { 'Content-Type': 'application/json' } },
     ];
     let lastStatus = '';
     let lastError = '';
@@ -585,17 +577,11 @@ export default function AdminForm() {
   const putPotToBackend = async (id, pot) => {
     const { _id, id: _drop, ...body } = pot || {};
     const clean = { ...body };
-    const noColourImgs = (clean.colours || []).map(c => ({ name: c.name, hex: c.hex, extra: c.extra, image: '' }));
-    const light = { ...clean, images: (clean.images || []).slice(0, 1), image: (clean.images || [])[0] || clean.image || '', imageUrl: (clean.images || [])[0] || clean.image || '', colours: noColourImgs };
-    const ultra = { ...clean, images: [], image: '', imageUrl: '', colours: noColourImgs };
-    const tinyPhoto = await shrinkPhoto((clean.images || [])[0] || clean.image || '');
-    const tiny = { ...clean, images: tinyPhoto ? [tinyPhoto] : [], image: tinyPhoto, imageUrl: tinyPhoto, colours: noColourImgs };
+    // SIRF full payload - light/tiny/ultra fallback HATA DIYA: wo 413 pe chupke se 1 photo save kar dete the, isliye edit ke baad thumbnails gayab hote the.
+    // Backend ka limit ab 10mb hai, isliye poori photos jayengi. Fail hua to local me safe rahega, 1-photo save kabhi nahi hoga.
     const tries = [
       { body: clean, headers: { 'Content-Type': 'application/json', ...authHeaders() } },
       { body: clean, headers: { 'Content-Type': 'application/json' } },
-      { body: light, headers: { 'Content-Type': 'application/json' } },
-      { body: tiny, headers: { 'Content-Type': 'application/json' } },
-      { body: ultra, headers: { 'Content-Type': 'application/json' } },
     ];
     let lastStatus = '', lastError = '';
     for (const t of tries) {
