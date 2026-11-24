@@ -78,14 +78,18 @@ export default function Pot() {
         // Pehle wala code backend milte hi local ko mita deta tha - isliye TEST POT gayab ho jata tha.
         // Ab TEST POT backend me na bhi ho, tab bhi POTS page pe dikhega.
         let backend = [];
-        try {
-          const res = await fetch(`${API_URL}/api/pots`);
-          if (res.ok) {
-            const data = await res.json();
-            const arr = Array.isArray(data) ? data : (data.pots || []);
-            if (Array.isArray(arr)) backend = arr;
-          }
-        } catch (e) { /* backend offline - local hi dikhega */ }
+        // Render free backend sota hai (cold start ~50s) - ek baar me na mile to 3 baar try karo.
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            const res = await fetch(`${API_URL}/api/pots`);
+            if (res.ok) {
+              const data = await res.json();
+              const arr = Array.isArray(data) ? data : (data.pots || []);
+              if (Array.isArray(arr)) { backend = arr; break; }
+            }
+          } catch (e) { /* retry */ }
+          if (attempt < 2) await new Promise(r => setTimeout(r, 4000));
+        }
         let local = [];
         const keys = ['eco_admin_pots', 'eco_my_pots', 'admin-pots', 'eco_shop_pots'];
         for (const k of keys) {
