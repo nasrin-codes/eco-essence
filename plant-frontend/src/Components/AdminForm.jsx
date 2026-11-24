@@ -469,6 +469,39 @@ export default function AdminForm() {
     }
     return { ok: false, status: lastStatus, error: lastError };
   };
+  // PUT with auto-retry: edit bhi POST jaisa - 3 tareekon se try, ek to chalega.
+  const putPotToBackend = async (id, pot) => {
+    const { _id, id: _drop, ...body } = pot || {};
+    const clean = { ...body };
+    const light = { ...clean, images: (clean.images || []).slice(0, 1), image: (clean.images || [])[0] || clean.image || '', imageUrl: (clean.images || [])[0] || clean.image || '', colours: (clean.colours || []).map(c => ({ name: c.name, hex: c.hex, extra: c.extra, image: '' })) };
+    const tries = [
+      { body: clean, headers: { 'Content-Type': 'application/json', ...authHeaders() } },
+      { body: clean, headers: { 'Content-Type': 'application/json' } },
+      { body: light, headers: { 'Content-Type': 'application/json' } },
+    ];
+    let lastStatus = '', lastError = '';
+    for (const t of tries) {
+      try {
+        const res = await fetch(`${API_URL}/api/pots/${id}`, { method: 'PUT', headers: t.headers, body: JSON.stringify(t.body) });
+        lastStatus = String(res.status);
+        if (res.ok) return { ok: true, status: lastStatus, error: '' };
+        try { lastError = (await res.text()).slice(0, 140); } catch {}
+      } catch { lastStatus = 'no reply'; lastError = ''; }
+    }
+    return { ok: false, status: lastStatus, error: lastError };
+  };
+  // DELETE with auto-retry: purana pot backend se hatana bhi kabhi na ruke.
+  const deletePotFromBackend = async (id) => {
+    const tries = [
+      { 'Content-Type': 'application/json', ...authHeaders() },
+      { 'Content-Type': 'application/json' },
+      { 'x-admin-key': sessionStorage.getItem('admin_code') || '' },
+    ];
+    for (const h of tries) {
+      try { const res = await fetch(`${API_URL}/api/pots/${id}`, { method: 'DELETE', headers: h }); if (res.ok) return true; } catch {}
+    }
+    return false;
+  };
   // Backend ke status number ko saaf Hindi me samjhao - user ko number yaad rakhne ki zaroorat nahi.
   const backendHint = (status, error) => {
     if (status === '404' || /cannot post/i.test(error || '')) return 'Backend me POST route nahi mila';
@@ -488,8 +521,21 @@ export default function AdminForm() {
     if (!Array.isArray(local)) local = [];
     const backendNames = new Set(backend.map(p => String(p.name || '').toLowerCase().trim()));
     const missing = local.filter(p => p && p.name && !backendNames.has(String(p.name).toLowerCase().trim()));
+    const backendById = new Map(backend.map(p => [String(p._id || p.id), p]));
     let synced = 0;
+    // 1) Naye pots jo backend me nahi - POST.
     for (const p of missing) { const r = await postPotToBackend(p); if (r.ok) synced++; }
+    // 2) Rename/edit hue pots - backend me purana naam atka hai, wahi _id pe PUT karke theek karo.
+    for (const p of local) {
+      const bid = String(p._id || p.id || '');
+      if (!isObjectId(bid)) continue;
+      const b = backendById.get(bid);
+      if (!b) continue;
+      if (String(b.name || '').trim() !== String(p.name || '').trim() || Number(b.price) !== Number(p.price)) {
+        const r = await putPotToBackend(bid, p);
+        if (r.ok) synced++;
+      }
+    }
     const fresh = await fetchBackendPots();
     if (fresh !== null && fresh.length > 0) savePots(fresh);
     return { ok: true, synced, reason: '' };
@@ -545,7 +591,7 @@ export default function AdminForm() {
     savePots(remaining);
     // Also delete from the backend - otherwise the Pots page (backend-first) would show the binned pot again.
     // Restore re-POSTs it to the backend via handleRestore.
-    fetch(`${API_URL}/api/pots/${id}`, { method:'DELETE', headers:{ 'x-admin-key': sessionStorage.getItem('admin_code')||'' } }).catch(()=>{});
+    deletePotFromBackend(id);
     setPotMsg(`${pot.name} moved to Bin • Restore anytime from Bin`);
   };
   const handlePotSubmit = async () => {
@@ -571,11 +617,15 @@ export default function AdminForm() {
     let backendError = '';
     try{
       if (editingPotId && isObjectId(editingPotId)) {
-        // Asli backend pot ka EDIT - PUT, uske sahi ObjectId pe.
-        const res = await fetch(`${API_URL}/api/pots/${editingPotId}`, { method:'PUT', headers:{'Content-Type':'application/json', ...authHeaders()}, body: JSON.stringify(payload) });
-        backendOk = res.ok;
-        backendStatus = String(res.status);
-        if (!res.ok) { try { backendError = (await res.text()).slice(0, 140); } catch {} }
+        // Asli backend pot ka EDIT - PUT, 3 tareekon se try.
+        const r = await putPotToBackend(editingPotId, payload);
+        backendOk = r.ok; backendStatus = r.status; backendError = r.error || '';
+        if (!backendOk) {
+          // PUT na chala to purana delete + naya POST - purana naam backend pe kabhi nahi atkega.
+          await deletePotFromBackend(editingPotId);
+          const r2 = await postPotToBackend(payload);
+          backendOk = r2.ok; backendStatus = r2.status; backendError = r2.error || '';
+        }
       } else {
         // Naya pot, ya local-only pot ka edit - POST with auto-retry (3 tareeke).
         const r = await postPotToBackend(payload);
