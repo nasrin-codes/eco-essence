@@ -95,6 +95,10 @@ export default function PlantAuthJWT(){
     localStorage.setItem('eco_user_role', role);
     if(role==='admin'){ localStorage.setItem('eco_admin_verified', 'true'); } else { localStorage.removeItem('eco_admin_verified'); }
     trackLoginSession(fullName, finalEmail, phone || '');
+    // SERVER PE USER DARJ KARO - taaki kisi bhi device ke Admin me ye customer dikhe.
+    try{
+      fetch(`${API_URL}/api/users/upsert`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name: fullName, email: finalEmail, phone: phone || '', role }) }).catch(()=>{});
+    }catch{}
     window.dispatchEvent(new Event('eco-login'));
     window.dispatchEvent(new Event('eco-cart-updated'));
     try{
