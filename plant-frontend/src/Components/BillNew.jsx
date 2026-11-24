@@ -21,12 +21,13 @@ export default function Bill({ order, onClose }) {
   const waNum = phoneDigits.length === 10 ? '91' + phoneDigits : phoneDigits.length === 12 && phoneDigits.startsWith('91') ? phoneDigits : null;
   const addr = order.address?.full || (order.address ? [order.address.address1, order.address.city, order.address.pincode].filter(Boolean).join(', ') : 'In-Store Purchase');
 
-  // GST 5% prices me included hai - isliye tax ko total se alag nahi joda, sirf breakup dikhaya
+  const siteUrl = typeof window !== 'undefined' && window.location.origin ? window.location.origin : 'https://eco-essence-pi.vercel.app';
+  const siteQr = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&margin=10&color=0F2A1D&bgcolor=FFFFFF&data=${encodeURIComponent(siteUrl)}`;
+
   const gstTotal = subtotal * 5 / 105;
   const cgst = gstTotal / 2;
   const sgst = gstTotal / 2;
 
-  // Payment status: prepaid = poora paid, COD = balance due
   const payStatus = String(order.payment?.status || order.status || '');
   const payMethod = String(order.payment?.methodLabel || order.paymentMethod || 'Cash');
   const isCOD = /cash on delivery|cod|pay on delivery/i.test(payMethod) || /pay on delivery/i.test(payStatus);
@@ -36,14 +37,47 @@ export default function Bill({ order, onClose }) {
 
   const money = (n) => '₹' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  const billText = `Hello ${order.customerName || 'Customer'}! Your Eco-Essence Bill\n\nInvoice No: ${billNo}\nDate: ${dateStr}\n\nItems:\n${items.map(i => `- ${i.name} x ${i.qty} @ ${money(i.price)} = ${money(i.total)}`).join('\n')}\n\nSubtotal: ${money(subtotal)}\nDelivery: ${deliveryFee ? money(deliveryFee) : 'FREE'}\nGrand Total: ${money(total)}\nPayment: ${payMethod}\nBalance Due: ${money(balanceDue)}\n\nThank you for growing with Eco-Essence!`;
+  // LEAF LOGO - Eco-Essence ke baad wala patta (emoji nahi, asli logo - har device/printer pe same)
+  const LeafLogo = ({ size = 30 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true" className="shrink-0">
+      <path d="M12 1.5C6.4 7 4.2 11.6 4.2 15a7.8 7.8 0 0 0 15.6 0c0-3.4-2.2-8-7.8-13.5Z" fill="#1a5a3a" />
+      <path d="M12 21.5C12 16 12 10 12 4.5" stroke="#C9A227" strokeWidth="1.3" strokeLinecap="round" />
+      <path d="M12 12.5 8.6 9.8M12 12.5l3.4-2.7M12 16.5l-2.8-2.2M12 16.5l2.8-2.2" stroke="#C9A227" strokeWidth="1" strokeLinecap="round" />
+    </svg>
+  );
+  // Canvas PNG ke liye wahi patta - path se banta hai, koi image load nahi karni
+  const drawLeaf = (ctx, cx, cy, s, GREEN, GOLD) => {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.beginPath();
+    ctx.moveTo(0, -s / 2);
+    ctx.bezierCurveTo(s * 0.42, -s * 0.18, s * 0.36, s * 0.28, 0, s / 2);
+    ctx.bezierCurveTo(-s * 0.36, s * 0.28, -s * 0.42, -s * 0.18, 0, -s / 2);
+    ctx.closePath();
+    ctx.fillStyle = GREEN; ctx.fill();
+    ctx.strokeStyle = GOLD; ctx.lineWidth = Math.max(1, s * 0.045); ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(0, s * 0.42); ctx.lineTo(0, -s * 0.32); ctx.stroke();
+    ctx.lineWidth = Math.max(0.8, s * 0.035);
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-s * 0.18, -s * 0.12); ctx.moveTo(0, 0); ctx.lineTo(s * 0.18, -s * 0.12); ctx.stroke();
+    ctx.restore();
+  };
 
-  // BILL KO IMAGE (PNG) BANANA - plain Canvas API, screen wale design jaisa
+  const billText = `Hello ${order.customerName || 'Customer'}! Your Eco-Essence Bill\n\nInvoice No: ${billNo}\nDate: ${dateStr}\n\nItems:\n${items.map(i => `- ${i.name} x ${i.qty} @ ${money(i.price)} = ${money(i.total)}`).join('\n')}\n\nSubtotal: ${money(subtotal)}\nDelivery: ${deliveryFee ? money(deliveryFee) : 'FREE'}\nGrand Total: ${money(total)}\nPayment: ${payMethod}\nBalance Due: ${money(balanceDue)}\n\nThank you for growing with Eco-Essence!\n\nShop again - scan ya kholo: ${siteUrl}`;
+
+  // BILL PNG - screen wale design jaisa, har row apni jagah (koi overlap nahi)
   const downloadBillImage = () => {
+    const qrImg = new Image();
+    qrImg.crossOrigin = 'anonymous';
+    qrImg.onload = () => drawBillPng(qrImg);
+    qrImg.onerror = () => drawBillPng(null);
+    qrImg.src = siteQr;
+  };
+  const drawBillPng = (qrImg) => {
     const W = format === 'card' ? 520 : 720;
     const pad = 44;
-    const rowH = 34;
-    const H = 208 + 118 + 40 + items.length * rowH + 210 + 150 + 64;
+    const rowH = 36;
+    // Height content se banti hai - fixed formula nahi, taaki rows kabhi overlap na hon
+    const H = 830 + items.length * rowH;
     const c = document.createElement('canvas');
     c.width = W; c.height = H;
     const ctx = c.getContext('2d');
@@ -56,20 +90,11 @@ export default function Bill({ order, onClose }) {
 
     ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, W, H);
 
-    // WATERMARK - halka, beech me
-    ctx.save();
-    ctx.translate(W / 2, H * 0.52); ctx.rotate(-0.32);
-    ctx.font = 'bold 54px Georgia, serif'; ctx.textAlign = 'center';
-    ctx.fillStyle = 'rgba(15,42,29,0.055)';
-    ctx.fillText('ECO-ESSENCE', 0, 0);
-    ctx.font = 'bold 120px Georgia, serif'; ctx.fillStyle = 'rgba(15,42,29,0.04)';
-    ctx.fillText('\u{1F33F}', 0, 110);
-    ctx.restore();
-
-    // HEADER - centered, store jaisa
+    // HEADER - watermark sirf yahan, halka, text ke peeche nahi
     ctx.textAlign = 'center'; ctx.fillStyle = GREEN;
     ctx.font = 'bold 38px Georgia, serif';
-    ctx.fillText('ECO-ESSENCE', W / 2, 62);
+    ctx.fillText('Eco-Essence', W / 2, 62);
+    drawLeaf(ctx, W / 2 + ctx.measureText('Eco-Essence').width / 2 + 20, 47, 30, GREEN, GOLD);
     ctx.font = '11px Arial, sans-serif'; ctx.fillStyle = GOLD;
     ctx.fillText('P L A N T S   \u2022   P O T S   \u2022   G R E E N   L I V I N G', W / 2, 88);
     ctx.font = '12px Arial, sans-serif'; ctx.fillStyle = MUT;
@@ -80,8 +105,8 @@ export default function Bill({ order, onClose }) {
     ctx.fillStyle = GREEN; ctx.fillRect(pad, 176, W - pad * 2, 3);
     ctx.fillStyle = GOLD; ctx.fillRect(pad, 182, W - pad * 2, 1);
 
-    // BILLED TO  |  INVOICE
-    let y = 208;
+    // BILLED TO | INVOICE - har line apni y pe, 24px gap
+    let y = 212;
     ctx.textAlign = 'left'; ctx.font = 'bold 12px Arial, sans-serif'; ctx.fillStyle = INK;
     ctx.fillText('Billed To: ', pad, y);
     ctx.font = '12px Arial, sans-serif';
@@ -89,24 +114,24 @@ export default function Bill({ order, onClose }) {
     ctx.textAlign = 'right'; ctx.font = 'bold 12px Arial, sans-serif';
     ctx.fillText('Invoice No: ', W - pad - 110, y);
     ctx.font = '12px Arial, sans-serif'; ctx.fillText(billNo, W - pad, y);
-    y += 22;
+    y += 24;
     ctx.textAlign = 'left'; ctx.font = '12px Arial, sans-serif'; ctx.fillStyle = MUT;
     ctx.fillText('Phone: ' + (waNum ? '+' + waNum : (order.phone || '-')), pad, y);
     ctx.textAlign = 'right'; ctx.fillStyle = INK; ctx.font = 'bold 12px Arial, sans-serif';
     ctx.fillText('Date: ', W - pad - 110, y);
     ctx.font = '12px Arial, sans-serif'; ctx.fillText(dateStr, W - pad, y);
-    y += 22;
+    y += 24;
     ctx.textAlign = 'left'; ctx.font = '11px Arial, sans-serif'; ctx.fillStyle = MUT;
     ctx.fillText(fit(addr, W * 0.55), pad, y);
     ctx.textAlign = 'right'; ctx.font = 'bold 12px Arial, sans-serif'; ctx.fillStyle = INK;
     ctx.fillText('Payment: ', W - pad - 110, y);
     ctx.font = '12px Arial, sans-serif'; ctx.fillText(fit(payMethod, 105), W - pad, y);
-    y += 20;
+    y += 22;
     ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(W - pad, y); ctx.stroke();
 
     // TABLE HEADER
-    y += 28;
+    y += 30;
     ctx.textAlign = 'left'; ctx.font = 'bold 12px Arial, sans-serif'; ctx.fillStyle = INK;
     ctx.fillText('Description', pad, y);
     ctx.textAlign = 'center'; ctx.fillText('Qty', W * 0.60, y);
@@ -124,39 +149,41 @@ export default function Bill({ order, onClose }) {
       ctx.fillText(money(it.price), W * 0.78, y);
       ctx.font = 'bold 12px Arial, sans-serif'; ctx.fillText(money(it.total), W - pad, y);
       ctx.strokeStyle = 'rgba(0,0,0,0.08)';
-      ctx.beginPath(); ctx.moveTo(pad, y + 10); ctx.lineTo(W - pad, y + 10); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(pad, y + 12); ctx.lineTo(W - pad, y + 12); ctx.stroke();
     });
 
-    // TOTALS - right side
-    y += 36;
-    const tX = W * 0.58, vX = W - pad;
+    // TOTALS CARD - halki green background, har row 28px gap
+    y += 24;
+    const cardX = W * 0.52, cardW = W - pad - cardX, cardTop = y - 8;
     const tRow = (label, val, bold, color) => {
       ctx.textAlign = 'left'; ctx.font = (bold ? 'bold ' : '') + '12px Arial, sans-serif'; ctx.fillStyle = color || MUT;
-      ctx.fillText(label, tX, y);
-      ctx.textAlign = 'right'; ctx.fillStyle = color || INK; ctx.fillText(val, vX, y);
-      y += 24;
+      ctx.fillText(label, cardX + 16, y);
+      ctx.textAlign = 'right'; ctx.fillStyle = color || INK; ctx.fillText(val, W - pad - 16, y);
+      y += 28;
     };
     tRow('Subtotal:', money(subtotal));
     tRow('Delivery:', deliveryFee ? money(deliveryFee) : 'FREE');
     tRow('CGST (2.5%) incl.:', money(cgst));
     tRow('SGST (2.5%) incl.:', money(sgst));
-    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-    ctx.beginPath(); ctx.moveTo(tX, y - 6); ctx.lineTo(vX, y - 6); ctx.stroke();
-    tRow('Grand Total:', money(total), true, INK);
-    ctx.strokeStyle = INK; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.moveTo(tX, y - 6); ctx.lineTo(vX, y - 6); ctx.stroke();
-    tRow('Advance Paid:', money(advancePaid), true, '#1a5a3a');
-    tRow('Balance Due:', money(balanceDue), true, '#C0392B');
+    // Grand Total - apni green patti me, kisi row se chipakta nahi
+    const bandH = 36;
+    ctx.fillStyle = GREEN; ctx.fillRect(cardX, y - 6, cardW, bandH);
+    ctx.textAlign = 'left'; ctx.font = 'bold 13px Arial, sans-serif'; ctx.fillStyle = '#FFFFFF';
+    ctx.fillText('Grand Total:', cardX + 16, y + 17);
+    ctx.textAlign = 'right'; ctx.fillText(money(total), W - pad - 16, y + 17);
+    y += bandH + 10;
+    if (advancePaid > 0) { tRow('Advance Paid:', money(advancePaid), true, '#1a5a3a'); }
+    if (balanceDue > 0) { tRow('Balance Due:', money(balanceDue), true, '#C0392B'); }
+    ctx.fillStyle = 'rgba(15,42,29,0.06)'; ctx.fillRect(cardX, cardTop, cardW, (y - 10) - cardTop);
 
     // TERMS + SIGNATORY
-    y += 26;
+    y += 30;
     ctx.textAlign = 'left'; ctx.font = 'bold 11px Arial, sans-serif'; ctx.fillStyle = INK;
     ctx.fillText('Terms & Conditions:', pad, y);
     ctx.font = '10px Arial, sans-serif'; ctx.fillStyle = MUT;
-    ctx.fillText('1. Live plants - please follow the care guide.', pad, y + 18);
-    ctx.fillText('2. Replacement within 7 days for transit damage.', pad, y + 34);
-    ctx.fillText('3. Subject to Ahmedabad jurisdiction.', pad, y + 50);
-    // stamp box
+    ctx.fillText('1. Live plants - please follow the care guide.', pad, y + 20);
+    ctx.fillText('2. Replacement within 7 days for transit damage.', pad, y + 36);
+    ctx.fillText('3. Subject to Ahmedabad jurisdiction.', pad, y + 52);
     const bx = W - pad - 190, by = y - 8, bw = 190, bh = 78;
     ctx.strokeStyle = GOLD; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]);
     ctx.strokeRect(bx, by, bw, bh); ctx.setLineDash([]);
@@ -164,11 +191,19 @@ export default function Bill({ order, onClose }) {
     ctx.fillText('AUTHORIZED SIGNATORY', bx + bw / 2, by + 18);
     ctx.font = 'bold 14px Georgia, serif'; ctx.fillStyle = GREEN;
     ctx.fillText('Eco-Essence', bx + bw / 2, by + 44);
+    drawLeaf(ctx, bx + bw / 2 + ctx.measureText('Eco-Essence').width / 2 + 12, by + 36, 16, GREEN, GOLD);
     ctx.font = '9px Arial, sans-serif'; ctx.fillStyle = '#1a5a3a';
     ctx.fillText('GROW WITH US', bx + bw / 2, by + 62);
 
-    ctx.textAlign = 'center'; ctx.font = 'bold 13px Georgia, serif'; ctx.fillStyle = INK;
-    ctx.fillText('Thank you for growing with us!', W / 2, H - 26);
+    // QR + THANKS - neeche, apni jagah
+    y += 108;
+    ctx.textAlign = 'center'; ctx.font = 'bold 12px Arial, sans-serif'; ctx.fillStyle = GREEN;
+    ctx.fillText('Scan to shop again', W / 2, y);
+    if (qrImg) { ctx.drawImage(qrImg, W / 2 - 34, y + 12, 68, 68); }
+    ctx.font = 'bold 13px Georgia, serif'; ctx.fillStyle = INK;
+    ctx.fillText('Thank you for growing with us!', W / 2, y + 108);
+    ctx.font = '10px Arial, sans-serif'; ctx.fillStyle = MUT;
+    ctx.fillText('This is a computer-generated receipt.', W / 2, y + 128);
 
     c.toBlob((blob) => {
       if (!blob) return;
@@ -198,19 +233,19 @@ export default function Bill({ order, onClose }) {
       <div className="w-full max-w-[680px] my-6" onClick={e => e.stopPropagation()}>
         {/* BILL - yehi print hoga */}
         <div className={`bill-print-area relative bg-white shadow-2xl overflow-hidden ${format === 'card' ? 'max-w-[480px] mx-auto' : ''}`}>
-          {/* WATERMARK */}
-          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center opacity-[0.05] select-none">
-            <div className="font-serif font-bold text-[54px] leading-none text-[#0F2A1D] -rotate-12">ECO-ESSENCE</div>
-            <div className="text-[110px] leading-none -rotate-12 mt-2">🌿</div>
-          </div>
 
-          {/* HEADER - centered store header */}
+          {/* HEADER */}
           <div className="relative px-8 pt-7 pb-4 text-center">
-            <div className="font-serif text-[36px] leading-none font-bold text-[#0F2A1D] tracking-wide">ECO-ESSENCE <span className="text-[#C9A227]">🌿</span></div>
+            <div className="font-serif text-[36px] leading-none font-bold text-[#0F2A1D] tracking-wide flex items-center justify-center gap-1.5">Eco-Essence <LeafLogo size={30} /></div>
             <div className="font-sans text-[10px] tracking-[0.3em] text-[#C9A227] font-bold mt-2">PLANTS &nbsp;•&nbsp; POTS &nbsp;•&nbsp; GREEN LIVING</div>
             <div className="font-sans text-[11px] text-black/60 mt-2">Opp. Kankaria Gate No. 1, Kankaria, Ahmedabad, Gujarat</div>
             <div className="font-sans text-[11px] text-black/60">Phone: +91 (555) 752-6847 &nbsp;|&nbsp; hello@ecoessence.com</div>
-            <div className="font-sans text-[13px] font-bold text-[#0F2A1D] tracking-[0.25em] mt-3">TAX INVOICE</div>
+            <div className="mt-3 flex items-center justify-center gap-2">
+              <span className="font-sans text-[13px] font-bold text-[#0F2A1D] tracking-[0.25em]">TAX INVOICE</span>
+              {isPaid
+                ? <span className="font-sans text-[10px] font-bold bg-[#1a5a3a] text-white px-2.5 py-1 rounded-full">✓ PAID</span>
+                : <span className="font-sans text-[10px] font-bold bg-[#FFF4D6] text-[#8A6D00] px-2.5 py-1 rounded-full">COD • PAY ON DELIVERY</span>}
+            </div>
           </div>
           <div className="mx-8 h-[3px] bg-[#0F2A1D]" />
           <div className="mx-8 h-[1px] bg-[#C9A227] mt-[2px]" />
@@ -233,19 +268,19 @@ export default function Bill({ order, onClose }) {
           {/* ITEMS TABLE */}
           <div className="relative px-8 mt-5">
             <table className="w-full text-left border-collapse">
-              <thead><tr className="border-b border-black/30">
-                <th className="py-2 font-sans text-[12px] font-bold">Description</th>
-                <th className="py-2 font-sans text-[12px] font-bold text-center">Qty</th>
-                <th className="py-2 font-sans text-[12px] font-bold text-right">Rate</th>
-                <th className="py-2 font-sans text-[12px] font-bold text-right">Amount</th>
+              <thead><tr className="bg-[#F2F7F3]">
+                <th className="py-2.5 px-2 font-sans text-[12px] font-bold rounded-tl-[8px]">Description</th>
+                <th className="py-2.5 font-sans text-[12px] font-bold text-center">Qty</th>
+                <th className="py-2.5 font-sans text-[12px] font-bold text-right">Rate</th>
+                <th className="py-2.5 px-2 font-sans text-[12px] font-bold text-right rounded-tr-[8px]">Amount</th>
               </tr></thead>
               <tbody>
                 {items.map((it, i) => (
                   <tr key={i} className="border-b border-dashed border-black/10">
-                    <td className="py-2.5 font-sans text-[12px] pr-2">{it.name}</td>
-                    <td className="py-2.5 font-sans text-[12px] text-center text-black/70">{it.qty}</td>
-                    <td className="py-2.5 font-sans text-[12px] text-right">{money(it.price)}</td>
-                    <td className="py-2.5 font-sans text-[12px] font-bold text-right">{money(it.total)}</td>
+                    <td className="py-3 px-2 font-sans text-[12px] pr-2">{it.name}</td>
+                    <td className="py-3 font-sans text-[12px] text-center text-black/70">{it.qty}</td>
+                    <td className="py-3 font-sans text-[12px] text-right">{money(it.price)}</td>
+                    <td className="py-3 px-2 font-sans text-[12px] font-bold text-right">{money(it.total)}</td>
                   </tr>
                 ))}
                 {items.length === 0 && <tr><td colSpan="4" className="py-4 text-center font-sans text-[12px] opacity-50">No items</td></tr>}
@@ -253,16 +288,17 @@ export default function Bill({ order, onClose }) {
             </table>
           </div>
 
-          {/* TOTALS - right side, store bill jaisa */}
-          <div className="relative px-8 mt-4 flex justify-end">
-            <div className="w-full max-w-[300px] font-sans text-[12px] space-y-1.5">
+          {/* TOTALS - apna card, har row alag line, Grand Total green patti me */}
+          <div className="relative px-8 mt-5 flex justify-end">
+            <div className="w-full max-w-[320px] bg-[#F7FAF7] rounded-[14px] p-4 font-sans text-[12px] space-y-2.5">
               <div className="flex justify-between"><span className="text-black/60">Subtotal:</span><span>{money(subtotal)}</span></div>
               <div className="flex justify-between"><span className="text-black/60">Delivery:</span><span>{deliveryFee ? money(deliveryFee) : 'FREE'}</span></div>
               <div className="flex justify-between"><span className="text-black/60">CGST (2.5%) incl.:</span><span>{money(cgst)}</span></div>
               <div className="flex justify-between"><span className="text-black/60">SGST (2.5%) incl.:</span><span>{money(sgst)}</span></div>
-              <div className="flex justify-between border-t border-black/30 pt-2 font-bold text-[13px]"><span>Grand Total:</span><span>{money(total)}</span></div>
-              <div className="flex justify-between border-t-2 border-black pt-2 font-bold text-[#1a5a3a]"><span>Advance Paid:</span><span>{money(advancePaid)}</span></div>
-              <div className="flex justify-between font-bold text-[#C0392B]"><span>Balance Due:</span><span>{money(balanceDue)}</span></div>
+              <div className="flex justify-between items-center bg-[#0F2A1D] text-white rounded-[10px] px-3 py-2.5 -mx-1 font-bold text-[13px]"><span>Grand Total:</span><span>{money(total)}</span></div>
+              {advancePaid > 0 && <div className="flex justify-between font-bold text-[#1a5a3a]"><span>Advance Paid:</span><span>{money(advancePaid)}</span></div>}
+              {balanceDue > 0 && <div className="flex justify-between font-bold text-[#C0392B]"><span>Balance Due:</span><span>{money(balanceDue)}</span></div>}
+              {balanceDue === 0 && <div className="text-center font-bold text-[#1a5a3a] text-[11px] tracking-wide">✓ FULLY PAID — NOTHING DUE</div>}
             </div>
           </div>
 
@@ -278,13 +314,22 @@ export default function Bill({ order, onClose }) {
             </div>
             <div className="shrink-0 border-[1.5px] border-dashed border-[#C9A227] rounded-[10px] px-5 py-3 text-center">
               <div className="font-sans text-[8px] tracking-[0.2em] font-bold text-black/50">AUTHORIZED SIGNATORY</div>
-              <div className="font-serif text-[15px] font-bold text-[#0F2A1D] mt-1">Eco-Essence</div>
+              <div className="font-serif text-[15px] font-bold text-[#0F2A1D] mt-1 flex items-center justify-center gap-1">Eco-Essence <LeafLogo size={16} /></div>
               <div className="font-sans text-[8px] tracking-[0.2em] font-bold text-[#1a5a3a] mt-0.5">★ GROW WITH US ★</div>
             </div>
           </div>
 
           <div className="relative px-8 pb-5 text-center">
-            <div className="font-serif text-[14px] font-bold">Thank you for growing with us! 🌿</div>
+            <div className="flex items-center justify-center gap-3">
+              <div className="bg-white border border-black/10 rounded-[10px] p-1.5 shadow-sm">
+                <img src={siteQr} alt="Scan to shop again on Eco-Essence" width="76" height="76" className="rounded-[4px]" loading="lazy" />
+              </div>
+              <div className="text-left">
+                <div className="font-sans text-[11px] font-bold text-[#0F2A1D]">Scan to shop again</div>
+                <div className="font-sans text-[10px] text-black/50 mt-0.5">Eco-Essence • Plants, Pots &amp; Green Living</div>
+              </div>
+            </div>
+            <div className="font-serif text-[14px] font-bold mt-3">Thank you for growing with us! 🌿</div>
             <div className="font-sans text-[10px] opacity-50 mt-1">This is a computer-generated receipt.</div>
           </div>
         </div>
