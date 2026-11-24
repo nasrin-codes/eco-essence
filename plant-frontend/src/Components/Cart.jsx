@@ -1,5 +1,8 @@
+import Bill from "./Bill";
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 export default function Cart() {
   const navigate = useNavigate();
@@ -8,8 +11,15 @@ export default function Cart() {
 
   // ===== PAYMENT OPTIONS - DROPDOWN: user choose karega, phir uske fields khulenge =====
   const [payMethod, setPayMethod] = useState('');
+  const [upiPaid, setUpiPaid] = useState(false);
+
+  /* ⚠️ PAYMENT QR CONFIG: yahan apna ASLI UPI ID daalo (live karne se pehle).
+     Placeholder se payment kahin nahi jayega. Pehle ₹1 se test karo. */
+  const MERCHANT_UPI_ID = 'ecoessence@upi';
+  const MERCHANT_NAME = 'Eco-Essence';
   const [payOpen, setPayOpen] = useState(false);
   const [placedOrder, setPlacedOrder] = useState(null);
+  const [showBill, setShowBill] = useState(false);
   const [pay, setPay] = useState({ upiId: '', cardNumber: '', cardName: '', expiry: '', cvv: '', bank: '' });
   const PAY_METHODS = [
     { id: 'upi', label: 'UPI', sub: 'GPay • PhonePe • Paytm', icon: '📱', color: '#5B2E91' },
@@ -18,6 +28,8 @@ export default function Cart() {
     { id: 'cod', label: 'Cash on Delivery', sub: 'Pay when order arrives', icon: '💵', color: '#B97A0A' },
   ];
   const payLabel = (PAY_METHODS.find(m=>m.id===payMethod)||{}).label || '';
+  const upiPayLink = `upi://pay?pa=${MERCHANT_UPI_ID}&pn=${encodeURIComponent(MERCHANT_NAME)}&am=${total}&cu=INR&tn=${encodeURIComponent('Eco-Essence Order')}`;
+  const upiQrImg = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=12&color=0F2A1D&bgcolor=FFFFFF&data=${encodeURIComponent(upiPayLink)}`;
 
   // ===== ORDER MESSAGE - jo number delivery me diya, usi pe jayega (WhatsApp / SMS) =====
   const orderMsgText = (o) => `Hello ${o.customerName}! Your Eco-Essence order is confirmed.\n\nOrder ID: ${o.id}\nItems: ${o.items.map(i=>`${i.name} x ${i.qty||i.quantity||1}`).join(', ')}\nTotal: ₹${o.total} (${o.payment.methodLabel})\nDelivery: ${o.address.full}\n\nThank you for shopping with Eco-Essence!`;
@@ -113,7 +125,7 @@ export default function Cart() {
 
     // PAYMENT VALIDATION - pehle method choose karna hi hoga
     if(!payMethod){ alert('Please select a payment method first'); return; }
-    if(payMethod==='upi' && (!pay.upiId || !pay.upiId.includes('@'))){ alert('Please enter a valid UPI ID (e.g. name@okhdfc)'); return; }
+    if(payMethod==='upi' && !upiPaid && (!pay.upiId || !pay.upiId.includes('@'))){ alert('Scan the QR to pay, OR enter your UPI ID for a collect request'); return; }
     if(payMethod==='card'){
       if(pay.cardNumber.replace(/\s/g,'').length!==16){ alert('Please enter a valid 16-digit card number'); return; }
       if(!pay.cardName.trim()){ alert('Please enter the name on card'); return; }
@@ -124,7 +136,7 @@ export default function Cart() {
 
     // PAYMENT INFO - card ke sensitive details kabhi save nahi hote, sirf last 4 digits
     const paymentInfo = payMethod==='upi'
-      ? { method: 'upi', methodLabel: 'UPI • ' + pay.upiId, status: 'Paid' }
+      ? { method: 'upi', methodLabel: upiPaid ? 'UPI • Scan & Pay (Paid)' : 'UPI • ' + pay.upiId, status: 'Paid' }
       : payMethod==='card'
       ? { method: 'card', methodLabel: 'Card •••• ' + pay.cardNumber.replace(/\s/g,'').slice(-4), status: 'Paid' }
       : payMethod==='netbanking'
@@ -154,6 +166,12 @@ export default function Cart() {
       status: 'pending'
     };
     localStorage.setItem('eco_orders', JSON.stringify([...orders, newOrder]));
+    // SERVER PE BHI ORDER BHEJO - warna dusre device ke Admin ko order kabhi nahi dikhega.
+    // Items se photo hatao - photo badi hoti hai, server ko sirf naam/price/qty chahiye.
+    try{
+      const serverOrder = { ...newOrder, items: (newOrder.items||[]).map(it => { const { img, image, imageUrl, photo, ...rest } = it || {}; return rest; }) };
+      fetch(`${API_URL}/api/orders`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(serverOrder) }).catch(()=>{});
+    }catch{}
     // Cart EMPTY: pehle SAARI cart keys clear karo, TABHI event bhejo - warna event pe loadCart purane generic key se items wapas le aata tha
     const buyerEmail = getEmail();
     if (buyerEmail) localStorage.setItem(`eco_cart_${buyerEmail}`, '[]');
@@ -235,11 +253,13 @@ export default function Cart() {
             <div className="mt-4 p-3 rounded-[14px] bg-[#FFFEF9] border font-sans text-[12px] leading-[1.6]">📱 Order confirmation aapke WhatsApp number <b>+91 {placedOrder.phone}</b> pe shop se bheja jayega.</div>
             <div className="mt-4 grid gap-2">
               <button onClick={()=>navigate('/orders')} className="h-12 rounded-full bg-[#1a5a3a] text-white font-sans text-[13px] font-bold hover:bg-black transition">View My Orders →</button>
+              <button onClick={()=>setShowBill(true)} className="h-12 rounded-full bg-[#0F2A1D] text-white font-sans text-[13px] font-bold hover:bg-[#1a5a3a] transition">🧾 View / Print Bill</button>
               <button onClick={()=>navigate('/shop')} className="h-11 rounded-full border font-sans text-[12px]">Continue Shopping</button>
             </div>
             <div className="font-sans text-[10px] opacity-40 mt-3">Message usi number pe jayega jo aapne delivery me diya hai</div>
           </div>
         </div>
+        {showBill && <Bill order={placedOrder} onClose={()=>setShowBill(false)} />}
       </div>
     );
   }
@@ -309,7 +329,7 @@ export default function Cart() {
                   {payOpen && (
                     <div className="absolute left-0 right-0 top-full mt-2 z-20 bg-white rounded-[16px] border border-black/10 shadow-[0_20px_50px_rgba(0,0,0,0.15)] overflow-hidden" style={{animation:'fadeUp .25s ease both'}}>
                       {PAY_METHODS.map(m=>(
-                        <button key={m.id} type="button" onClick={()=>{setPayMethod(m.id); setPayOpen(false);}} className={`w-full flex items-center gap-3 px-4 py-3 text-left transition ${payMethod===m.id ? 'bg-[#F0F7F0]' : 'hover:bg-[#FAF8F5]'}`}>
+                        <button key={m.id} type="button" onClick={()=>{setPayMethod(m.id); setPayOpen(false); setUpiPaid(false);}} className={`w-full flex items-center gap-3 px-4 py-3 text-left transition ${payMethod===m.id ? 'bg-[#F0F7F0]' : 'hover:bg-[#FAF8F5]'}`}>
                           <span className="w-9 h-9 rounded-full grid place-items-center text-[16px] shrink-0" style={{background: m.color+'1A'}}>{m.icon}</span>
                           <span className="flex-1"><span className="block font-sans text-[12px] font-bold">{m.label}</span><span className="block font-sans text-[10px] opacity-50">{m.sub}</span></span>
                           {payMethod===m.id && <span className="w-5 h-5 rounded-full bg-[#1a5a3a] text-white grid place-items-center text-[10px] shrink-0">✓</span>}
@@ -326,7 +346,25 @@ export default function Cart() {
                   </div>
                 )}
                 {payMethod==='upi' && (
-                  <div className="mt-2" style={{animation:'fadeUp .3s ease both'}}><input placeholder="UPI ID • e.g. name@okhdfc" value={pay.upiId} onChange={e=>setPay({...pay, upiId: e.target.value})} className="w-full h-11 rounded-full border border-black/15 px-5 text-[13px] font-sans bg-white outline-none focus:border-[#1a5a3a] focus:ring-2 focus:ring-[#1a5a3a]/15 transition placeholder:text-black/35" /><div className="font-sans text-[10px] opacity-50 mt-1.5">You will get a collect request on your UPI app to approve ₹{total}</div></div>
+                  <div className="mt-2 space-y-3" style={{animation:'fadeUp .3s ease both'}}>
+                    {/* SCAN TO PAY QR - customer aapke UPI ID pe pay karega */}
+                    <div className="p-4 rounded-[16px] bg-white border border-[#1a5a3a]/20 flex gap-4 items-center">
+                      <a href={upiPayLink} className="shrink-0 block leading-[0]" title="Tap to open UPI app">
+                        <img src={upiQrImg} alt="Scan to pay Eco-Essence" width="110" height="110" className="rounded-[10px] border border-black/5" loading="lazy" />
+                      </a>
+                      <div className="min-w-0">
+                        <div className="font-sans text-[13px] font-bold">Scan to Pay <span className="text-[#1a5a3a]">₹{total}</span></div>
+                        <div className="font-sans text-[11px] opacity-60 mt-1 leading-relaxed">GPay / PhonePe / Paytm se scan karo. Pay to: <b>{MERCHANT_NAME}</b><br />UPI ID: <b>{MERCHANT_UPI_ID}</b></div>
+                        <label className="flex items-center gap-2 mt-2.5 cursor-pointer select-none">
+                          <input type="checkbox" checked={upiPaid} onChange={e=>setUpiPaid(e.target.checked)} className="w-4 h-4 accent-[#1a5a3a]" />
+                          <span className="font-sans text-[11px] font-bold">I have paid via QR</span>
+                        </label>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3"><span className="flex-1 h-px bg-black/10" /><span className="font-sans text-[10px] font-bold opacity-40">OR</span><span className="flex-1 h-px bg-black/10" /></div>
+                    {/* COLLECT REQUEST - purana tareeka, abhi bhi available */}
+                    <div><input placeholder="UPI ID • e.g. name@okhdfc" value={pay.upiId} onChange={e=>setPay({...pay, upiId: e.target.value})} className="w-full h-11 rounded-full border border-black/15 px-5 text-[13px] font-sans bg-white outline-none focus:border-[#1a5a3a] focus:ring-2 focus:ring-[#1a5a3a]/15 transition placeholder:text-black/35" /><div className="font-sans text-[10px] opacity-50 mt-1.5">Collect request: aapke UPI app me ₹{total} approve karne ka request aayega</div></div>
+                  </div>
                 )}
                 {payMethod==='card' && (
                   <div className="mt-2 space-y-2" style={{animation:'fadeUp .3s ease both'}}>
