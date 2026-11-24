@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, Link } from "react-router-dom";
 import Navbar from "./Components/Navbar";
 import Home from "./Components/Home";
@@ -69,6 +69,26 @@ function Footer() {
 }
 
 export default function App() {
+  // PURANI DEVICE KA DATA SERVER PE - is browser me pade orders jo server pe nahi hain, ek baar server pe bhej do.
+  // Dusre device pe hua purchase/login isi se Admin me dikhega. Jo order pehle bheja ja chuka hai, dobara nahi jayega.
+  useEffect(() => {
+    try {
+      const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const sent = new Set(JSON.parse(localStorage.getItem('eco_orders_synced') || '[]'));
+      const orders = JSON.parse(localStorage.getItem('eco_orders') || '[]');
+      orders.filter(o => o && o.id && !sent.has(String(o.id))).forEach(o => {
+        const clean = { ...o, items: (o.items || []).map(it => { const { img, image, imageUrl, photo, ...rest } = it || {}; return rest; }) };
+        fetch(`${API}/api/orders`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(clean) })
+          .then(r => { if (r.ok) { sent.add(String(o.id)); try { localStorage.setItem('eco_orders_synced', JSON.stringify([...sent])); } catch {} } })
+          .catch(() => {});
+      });
+      const email = localStorage.getItem('plant_user_email') || localStorage.getItem('user_email');
+      const name = localStorage.getItem('plant_user_name') || localStorage.getItem('user_name');
+      const phone = localStorage.getItem('plant_user_phone') || localStorage.getItem('user_phone');
+      const role = localStorage.getItem('eco_user_role') || 'user';
+      if (email) fetch(`${API}/api/users/upsert`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, email, phone, role }) }).catch(() => {});
+    } catch {}
+  }, []);
   return (
     <Router>
       <Navbar />
