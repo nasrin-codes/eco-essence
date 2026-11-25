@@ -137,13 +137,11 @@ export default function Pot() {
   const getColours = (pot) => (pot.colours && pot.colours.length > 0 ? pot.colours : [{ name: 'Default', hex: pot.color || '#C17A52', extra: 0, image: '' }]);
   const getDisplayImage = (pot, cIdx, iIdx) => {
     const imgs = getImages(pot);
-    const colours = getColours(pot);
-    const colour = colours[cIdx] || colours[0];
-    // Slide arrows first - if the user is sliding, show that photo
-    if (iIdx !== undefined && iIdx !== null && iIdx !== 0) return imgs[iIdx] || imgs[0] || '';
-    // If the colour has its own photo, show it (Brown -> brown pot, Dark Green -> green pot)
-    if (colour && colour.image) return colour.image;
-    // Otherwise the MAIN image - the 1st image set in Admin
+    // CARD ka main image HAMESHA pot ki main photo hai (Admin ki 1st photo).
+    // Colour ki photo kabhi main image nahi banegi - wo sirf Detail view me
+    // colour dot dabane pe / thumbnails me dikhegi. Isliye Chevron jaisa
+    // terracotta pot uske green colour variant ki photo se nahi dikhega.
+    if (iIdx !== undefined && iIdx !== null) return imgs[iIdx] || imgs[0] || '';
     return imgs[0] || '';
   };
   const openDetail = (pot) => { setSelected(pot); setSize('6"'); setDetailImg(0); setDetailColour(0); setWithPlant(false); window.scrollTo({ top: 0, behavior: 'smooth' }); };
